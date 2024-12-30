@@ -8,7 +8,7 @@ function padding_tensor(tensor::Any, target_index::Int128)
     end
 
     padding = zeros(rank_l, (target_index - n), rank_r)
-    padded_tensor = cat(tensor, padding; dim = 2)
+    padded_tensor = cat(tensor, padding, dim = 2)
     return padded_tensor
 end
 
@@ -100,13 +100,53 @@ function TT_SVD_1(input_tensor::Any, error)
     #dimension of each index
     n = size(input_tensor)
     #temporary ranks of the tensor train 
-    r =  [i * 1 for i in n]
+    r =  ones(d)
+    print(r)
+    remaining_index = 0
     #SVD 
     for i in 2:d
-        println(i)
-        println(prod(size(W)))
-        println(n[i] * r[i-1])
-        W = reshape(W, Int(r[i-1] * n[i]), Int(prod(size(W))/(r[i-1] * n[i])))
+        try 
+            # Try regular calculation of remaining_index
+            remaining_index = Int(prod(size(W)) / (r[i-1] * n[i]))
+        catch bad_case 
+            if bad_case isa InexactError
+                println("Will start to pad.")
+                
+                next_index = cld(prod(size(W)), (r[i-1] * n[i]))
+                amount_to_be_padded = (next_index * r[i-1] * n[i]) - prod(size(W))
+                
+                if mod(amount_to_be_padded, (r[i-1] * r[i])) == 0
+                    added_index = div(amount_to_be_padded, (r[i-1] * r[i]))
+                    padding = zeros(r[i-1], added_index, r[i])
+                    W = cat(W, padding; dims=2)
+                     remaining_index = Int(prod(size(W)) / (r[i-1] * n[i]))
+                    println("Returning index from padding strategy 1.")
+                elseif mod(amount_to_be_padded, r[i] * n[i]) == 0
+                    added_index = div(amount_to_be_padded, (r[i] * n[i]))
+                    padding = zeros(added_index, n[i], r[i])
+                    W = cat(W, padding; dims=1)
+                     remaining_index = Int(prod(size(W)) / (r[i-1] * n[i]))
+                    println("Returning index from padding strategy 2.")
+                else
+                    println("Padding strategy failed.")
+                    println("iteration = $i")
+                    println(r[i-1])
+                    println(r[i])
+                    println(n[i])
+                    println(amount_to_be_padded)
+                    throw("Unable to resolve padding requirements.")
+                end
+            else
+                println("A severe error has occurred: $bad_case")
+                throw(bad_case)
+            end
+        end
+        if remaining_index == 0
+            throw("remaining_index was not assigned! Check logic.")
+        end
+
+        println("now reshaping")
+        W = reshape(W, Int(r[i-1] * n[i]),  remaining_index)
         U, S, V = svd(W)
         # #truncation step 
         cumsum_singular = cumsum(S.^2)
@@ -127,6 +167,7 @@ function TT_SVD_1(input_tensor::Any, error)
         W = S_trunc * (V_trunc)
     end
     tt_train[d] = W
+    print("Done, successful completion")
     return tt_train 
 end
 
