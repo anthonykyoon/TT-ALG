@@ -1,19 +1,5 @@
 using LinearAlgebra
 
-
-function summing(limit::Float64, array_1: any)
-    counter = 0
-    for i in array_1
-        if i != 0
-            counter += 1
-        elseif counter > limit | counter == limit
-            return counter - i
-        end
-    end
-    return counter     
-end
-
-
 function padding_tensor(tensor, target_index)
     rank_l, n, rank_r = size(tensor)
     
@@ -26,7 +12,6 @@ function padding_tensor(tensor, target_index)
     return padded_tensor
 end
 
-
 function TT_Direct_Sum(tt_a, tt_b)
     #Dimension of tt_a and TT)2
     d_a = length(tt_a)
@@ -34,7 +19,7 @@ function TT_Direct_Sum(tt_a, tt_b)
     
     if d_a != d_b
         throw("tensor trains are not the same length")
-
+    end 
     #Storing the final TT Array 
     tt_sum = Vector{Array{Float64}}(n = d_a)
 
@@ -53,6 +38,7 @@ function TT_Direct_Sum(tt_a, tt_b)
             tt_b_interest = padding_tensor(tt_b_interest, target_index)
         else
             tt_a_interest = padding_tensor(tt_a_interest, target_index)
+        end 
     end
     #Calculating the first core
     tt_sum[1] = hcat(tt_a_interest, tt_b_interest)
@@ -72,6 +58,7 @@ function TT_Direct_Sum(tt_a, tt_b)
                 tt_b_interest = padding_tensor(tt_b_interest, target_index)
             else
                 tt_a_interest = padding_tensor(tt_a_interest, target_index)
+            end 
         end
         #Blank tensor 
         new_tensor = zeros(rank_2_l + rank_1_l, n_1 , rank_1_r + rank_2_r)
@@ -95,27 +82,30 @@ function TT_Direct_Sum(tt_a, tt_b)
             tt_b_interest = padding_tensor(tt_b_interest, target_index)
         else
             tt_a_interest = padding_tensor(tt_a_interest, target_index)
+        end 
     end
-
     tt_sum[d_a] = vcat(tt_a_interest, tt_b_interest)
     return tt_sum
 end 
 
-function TT_SVD(input_tensor, error_threshold :: Float64)
+function TT_SVD_1(input_tensor::Any, error)
     #storing the tensor train 
     tt_train = []
     #rank of the tensor
     d = ndims(input_tensor)
     #Frobeius Norm 
-    trunc_param = error_threshold / sqrt(d - 1 ) * norm(input_tensor, "fro")
+    trunc_param = error / sqrt(d - 1 ) * sqrt(sum(abs2, input_tensor))
     #Copying the tensor over 
     W = copy(input_tensor)
-    #temporary ranks of the tensor train 
-    ranks =  [i * 1 for i in n]
     #dimension of each index
     n = size(input_tensor)
-    for i in range(2, d, 1)
-        W = reshape(W, (r[i-1] * n[i]), (prod(size(W))/(r[i-1] * n[i])))
+    #temporary ranks of the tensor train 
+    r =  [i * 1 for i in n]
+    #SVD 
+    for i in 2:d
+        println(prod(size(W)))
+        println(n[i] * r[i-1])
+        W = reshape(W, Int(r[i-1] * n[i]), Int(prod(size(W))/(r[i-1] * n[i])))
         U, S, V = svd(W)
         # #truncation step 
         cumsum_singular = cumsum(S.^2)
@@ -128,10 +118,10 @@ function TT_SVD(input_tensor, error_threshold :: Float64)
         end 
 
         U_trunc = U[:, 1:cutoff]
-        S_trunc = diagnol[S[1:cutoff]]
+        S_trunc = diagm(S[1:cutoff])
         V_trunc = V[1:cutoff, :]
 
-        ranks[i] = rank(U_trunc * S_trunc * V_trunc)
+        r[i] = r(U_trunc * S_trunc * V_trunc)
         tt_train[i] = reshape(U_trunc, r[i-1], n[i], r[i])    
         W = S * V_trunc
     end
@@ -139,61 +129,6 @@ function TT_SVD(input_tensor, error_threshold :: Float64)
     return tt_train 
 end
 
-
-
-
-# function TT_SVD_1(input_tensor::Array{Float64}, error_threshold, r_max::int)
-#     #Storing the Tensor cores
-#     TT_cores = Vector{Any}(undef, d)
-    
-#     #Number of vector spaces in the tensor 
-#     dimensions = ndims(input_tensor)
-    
-#     #Rank of each index
-#     n = size(input_tensor)
-    
-#     #Frobeius norm
-#     input_tensor_norm = norm(input_tensor, "fro")
-
-#     #Truncation parameter
-#     trunc = (error_threshold / sqrt(dimensions - 1)) * input_tensor_norm
-
-#     #n bar
-#     n_bar = [i * 1 for i in n ]
-
-#     r = ones(Int, dimensions)
-    
-#     #Copying the results
-#     W = copy(input_tensor)
-    
-#     for i in dimensions:-1:2
-#         W = reshape(W, (n_bar / (n[i]r[i]),n[i]r[i]))
-
-#         #SVD
-#         U, S, V = svd(W)
-
-#         eigen_squared = copy(S.^2)
-#         r_sigma = summing(array = eigen_squared, limit = trunc^2)
-#         r[i-1] = min(r_max, max(1, r_sigma))
-
-#         #Truncation
-#         U_trunc = U[:, 1:r[i-1]]
-#         V_trunc = V[1:r[i-1],:]
-#         S_trunc = Diagonal(S[1:r[i-1]])
-
-
-#         TT_cores[i] = reshape(V_trunc, r[i-1], n[i],r[i])
-
-#         n_bar = (n_bar * r[i -1]) /(n[i]r[i])
-
-#         W = U_trunc * S_trunc
-#     end
-#     TT_cores[1] = reshape(W, (1, n[1], r[1]))
-#     return TT_cores
-# end
-
-
- 
 function TT_Round(input_tt:: Array{Float64}, error_threshold::Float64)
     # #Store the tensor cores 
     # TT_cores = Vector{Any}(undef, d)
@@ -205,61 +140,13 @@ function TT_Round(input_tt:: Array{Float64}, error_threshold::Float64)
     tt_norm = norm(input_tt, "fro")
     #Truncation Parameter 
     trunc_parameter = (error_threshold) / (sqrt(d - 1)) * tt_norm
-    #QR decomposition for each core
-    for k in range(d, 2, -1)
-        dimensions = size(G[k])
-        rehape(G[k], dimensions[1], (dimensions[2] * dimensions[3]))
-        G[k], R = qr(rehape(G[k], dimensions[1], (dimensions[2] * dimensions[3])))
-        #TODO double check if this is the right contraction, intuitively this makes sense but I am not too sure on whether this is thr right contraction. Paper suggests a weird contraction
-        #will need to rehsape here to match contraction 
-        G[k - 1] = G[k-1] *  R 
+
+
+    #Q and R can be computed by the rehspaingof the tensor G_k by reshaping it into r_{k-1} times n_k r_k
+    for i in range(d, 2, -1)
+        dim_current_core = size(G[i])
+        Q, R = qr(reshape(G[i], dim_current_core[1], (dim_current_core[2] * dim_current_core[3])))
+
     end
-    #Truncation via SVD 
-    for k in range(1, d-1, 1)
-        #TODO a little finicky on the indexing here, I think this is what it means to grab the middle index like this
-        #Getting the middle index
-        i_k =  size(input_tt[k])[2]
-        dimensions = Dims(G[k])
-        G[k], V, D = svd(reshape(G[k], dimensions[1] * i_k, dimensions[2] / i_k)) 
-        #weird contraction here as well 
-        G[k +1] = G[k +1] * transpose(D * V)
-    end    
-    #unfolding each matrix 
-    for k in range(1, 1 , d)
-        dimensions =  Dims(input_tt[k])
-        G[k] = reshape(G[k], )
-    end
-end
 
-
-
-# function TT_Round(input_tensor::Array{Float64}, error_threshold::Float64)
-    
-#     #Storing the Tensor cores
-#     TT_cores = Vector{Any}(undef, d)
-
-#     #Number of vector space in the Tensor
-#     dimensions = ndims(input_tensor)
-
-#     #Rank of each index
-#     n = size(input_tensor)
-
-#     #Frobeius norm
-#     input_tensor_norm = norm(input_tensor, "fro")
-
-#     #calculating the Truncation parameter 
-#     trunc_param = (error_threshold / sqrt(dimensions - 1)) * input_tensor_norm
-
-#     #Copying the input tensor 
-#     W = copy(input_tensor)
-#     for i in dimensions:-1:2
-#         q_i , r_i = qr(reshape(W[i], :, size(W[i], 3)))
-#         W[i] = q_i
-#         W[k - 1] = W[k-1] * r_[i]
-#     end
-#     for k in 1:1:dimensions-1
-#         W[k], S, V = svd(reshape(W[k], :, size(W[i], 3)))
-#         #truncation step
-#         rank_k = sum(S.>= trunc_param)
-#     end
-# end
+end 
