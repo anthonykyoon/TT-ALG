@@ -18,7 +18,7 @@ test_tensor = random_tensor(3)
 
 
 @testset "Testing the SVD function" begin 
-    @test TT_SVD_1( test_tensor,  0.1) != test_tensor
+    @test TT_SVD_1( test_tensor,  0.00000000000001) != test_tensor
 end 
 
 

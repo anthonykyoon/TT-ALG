@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-function padding_tensor(tensor, target_index)
+function padding_tensor(tensor::Any, target_index::Int128)
     rank_l, n, rank_r = size(tensor)
     
     if n == target_index || n > target_index 
@@ -43,7 +43,7 @@ function TT_Direct_Sum(tt_a, tt_b)
     #Calculating the first core
     tt_sum[1] = hcat(tt_a_interest, tt_b_interest)
 
-    for tensor in range(2, (d_a -1), 1)
+    for tensor in 2:(d_a-1)
         #Retrieving information about the tensors copying for the case of padding 
         tt_a_interest = copy(tt_a[tensor])
         tt_b_interest = copt(tt_b[tensor])
@@ -89,10 +89,10 @@ function TT_Direct_Sum(tt_a, tt_b)
 end 
 
 function TT_SVD_1(input_tensor::Any, error)
-    #storing the tensor train 
-    tt_train = []
     #rank of the tensor
     d = ndims(input_tensor)
+    #storing the tensor train 
+    tt_train = Vector{Any}(undef, d)
     #Frobeius Norm 
     trunc_param = error / sqrt(d - 1 ) * sqrt(sum(abs2, input_tensor))
     #Copying the tensor over 
@@ -103,6 +103,7 @@ function TT_SVD_1(input_tensor::Any, error)
     r =  [i * 1 for i in n]
     #SVD 
     for i in 2:d
+        println(i)
         println(prod(size(W)))
         println(n[i] * r[i-1])
         W = reshape(W, Int(r[i-1] * n[i]), Int(prod(size(W))/(r[i-1] * n[i])))
@@ -120,10 +121,10 @@ function TT_SVD_1(input_tensor::Any, error)
         U_trunc = U[:, 1:cutoff]
         S_trunc = diagm(S[1:cutoff])
         V_trunc = V[1:cutoff, :]
-
-        r[i] = r(U_trunc * S_trunc * V_trunc)
-        tt_train[i] = reshape(U_trunc, r[i-1], n[i], r[i])    
-        W = S * V_trunc
+        r[i] = rank(U_trunc * S_trunc * V_trunc)
+        println(r[i])
+        tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
+        W = S_trunc * (V_trunc)
     end
     tt_train[d] = W
     return tt_train 
