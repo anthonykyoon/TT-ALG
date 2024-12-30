@@ -51,13 +51,18 @@ test_dimension = [2, 1, 3, 2, 4]
 
 test_tensor_train = random_tensor_train(test_rank, test_dimension)
 
+
+
+
 @testset "testing the direct sum function" begin 
     test_rank = [1, 3, 2, 4, 1, 1]
     test_dimension = [2, 1, 3, 2, 4]
     
-    @test length(test_tensor_train) == length(TT_Direct_Sum(test_tensor_train, test_tensor_train))
+    @test length(test_tensor_train) == length(TT_Direct_Sum(test_tensor_train, test_tensor_train)) 
 end 
     
+
+println(TT_Direct_Sum(test_tensor_train, test_tensor_train))
 
 # @testset "Testing the SVD function" begin 
 #     @test TT_SVD_1( test_tensor,  0.00000001) != test_tensor

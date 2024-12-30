@@ -21,11 +21,11 @@ function TT_Direct_Sum(tt_a, tt_b)
         throw("tensor trains are not the same length")
     end 
     #Storing the final TT Array 
-    tt_sum = Vector{Array{Float64}}(n = d_a)
+    tt_sum = Vector{Array{Float64}}(undef,d_a)
 
     #Creating the new references for the 1st and last core
     tt_a_interest = copy(tt_a[1])
-    tt_b_interest = copt(tt_b[1])
+    tt_b_interest = copy(tt_b[1])
 
     #Calculating the first core of the direct sum operation
     rank_1_l, n_1, rank_1_r = size(tt_a_interest)
@@ -46,7 +46,7 @@ function TT_Direct_Sum(tt_a, tt_b)
     for tensor in 2:(d_a-1)
         #Retrieving information about the tensors copying for the case of padding 
         tt_a_interest = copy(tt_a[tensor])
-        tt_b_interest = copt(tt_b[tensor])
+        tt_b_interest = copy(tt_b[tensor])
 
         rank_1_l, n_1, rank_1_r = size(tt_a_interest)
         rank_2_l, n_2, rank_2_r = size(tt_b_interest)
@@ -70,7 +70,7 @@ function TT_Direct_Sum(tt_a, tt_b)
     end
     #Calculating the last tensor 
     tt_a_interest = copy(tt_a[d_a])
-    tt_b_interest = copt(tt_b[d_b])
+    tt_b_interest = copy(tt_b[d_b])
 
     #retrieving information 
     rank_1_l, n_1, rank_1_r = size(tt_a_interest)
