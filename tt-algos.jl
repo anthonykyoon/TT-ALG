@@ -104,6 +104,8 @@ function TT_SVD_1(input_tensor::Any, error)
     print(r)
     remaining_index = 0
     #SVD 
+    #Use the reshaping matrix and dimension manipulation to do this. 
+
     for i in 2:d
         try 
             # Try regular calculation of remaining_index
@@ -114,28 +116,29 @@ function TT_SVD_1(input_tensor::Any, error)
                 
                 next_index = cld(prod(size(W)), (r[i-1] * n[i]))
                 amount_to_be_padded = (next_index * r[i-1] * n[i]) - prod(size(W))
-                
-                if mod(amount_to_be_padded, (r[i-1] * r[i])) == 0
-                    added_index = div(amount_to_be_padded, (r[i-1] * r[i]))
-                    padding = zeros(r[i-1], added_index, r[i])
-                    W = cat(W, padding; dims=2)
-                     remaining_index = Int(prod(size(W)) / (r[i-1] * n[i]))
-                    println("Returning index from padding strategy 1.")
-                elseif mod(amount_to_be_padded, r[i] * n[i]) == 0
-                    added_index = div(amount_to_be_padded, (r[i] * n[i]))
-                    padding = zeros(added_index, n[i], r[i])
-                    W = cat(W, padding; dims=1)
-                     remaining_index = Int(prod(size(W)) / (r[i-1] * n[i]))
-                    println("Returning index from padding strategy 2.")
-                else
-                    println("Padding strategy failed.")
-                    println("iteration = $i")
-                    println(r[i-1])
-                    println(r[i])
-                    println(n[i])
-                    println(amount_to_be_padded)
-                    throw("Unable to resolve padding requirements.")
-                end
+                println("my math was wrong and I have no idea how to pad this properly")
+                throw("Help please")
+                # if mod(amount_to_be_padded, (r[i-1] * r[i])) == 0
+                #     added_index = div(amount_to_be_padded, (r[i-1] * r[i]))
+                #     padding = zeros(Int(r[i-1]), Int(added_index), r[i])
+                #     W = cat(W, padding; dims=2)
+                #      remaining_index = Int(prod(size(W)) / (r[i-1] * n[i]))
+                #     println("Returning index from padding strategy 1.")
+                # elseif mod(amount_to_be_padded, r[i] * n[i]) == 0
+                #     added_index = div(amount_to_be_padded, (r[i] * n[i]))
+                #     padding = zeros(added_index, n[i], r[i])
+                #     W = cat(W, padding; dims=1)
+                #      remaining_index = Int(prod(size(W)) / (r[i-1] * n[i]))
+                #     println("Returning index from padding strategy 2.")
+                # else
+                #     println("Padding strategy failed.")
+                #     println("iteration = $i")
+                #     println(r[i-1])
+                #     println(r[i])
+                #     println(n[i])
+                #     println(amount_to_be_padded)
+                #     throw("Unable to resolve padding requirements.")
+                # end
             else
                 println("A severe error has occurred: $bad_case")
                 throw(bad_case)
