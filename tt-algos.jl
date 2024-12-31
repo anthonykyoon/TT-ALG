@@ -1,5 +1,20 @@
 using LinearAlgebra
 
+#helper functions
+function mode_k_contraction(base, added, k::Int64)
+    #performing the actual contraction itself
+    base_perm = permutedims(base, [setdiff(1:ndims(base), [k])...])
+    base_reshaped = reshape(base_perm, size(base)[k], : )
+    tensor_interest = added * base_reshaped
+    tensor_interest =  reshape(tensor_interest, (size(added, 1), size(base)[setdiff(1:ndims(base), [k])])...)
+    #rearranging the indicies so that the tensor_interest has the same indices but k 
+    indices = dims(base)
+    indices[k] = size(added, 1)
+    return reshape(tensor_interest, indicies)
+end
+
+
+
 function padding_tensor(tensor::Any, target_index::Int128)
     rank_l, n, rank_r = size(tensor)
     
@@ -12,6 +27,8 @@ function padding_tensor(tensor::Any, target_index::Int128)
     return padded_tensor
 end
 
+
+#actual functions
 function TT_Direct_Sum(tt_a, tt_b)
     #Dimension of tt_a and TT)2
     d_a = length(tt_a)
@@ -116,6 +133,7 @@ function TT_SVD_1(input_tensor::Any, error)
                 
                 next_index = cld(prod(size(W)), (r[i-1] * n[i]))
                 amount_to_be_padded = (next_index * r[i-1] * n[i]) - prod(size(W))
+
                 println("my math was wrong and I have no idea how to pad this properly")
                 throw("Help please")
                 # if mod(amount_to_be_padded, (r[i-1] * r[i])) == 0
@@ -170,7 +188,7 @@ function TT_SVD_1(input_tensor::Any, error)
         W = S_trunc * (V_trunc)
     end
     tt_train[d] = W
-    print("Done, successful completion")
+    println("Done, successful completion")
     return tt_train 
 end
 
@@ -188,10 +206,19 @@ function TT_Round(input_tt:: Array{Float64}, error_threshold::Float64)
 
 
     #Q and R can be computed by the rehspaingof the tensor G_k by reshaping it into r_{k-1} times n_k r_k
-    for i in range(d, 2, -1)
+    for i in d:2:(-1)
         dim_current_core = size(G[i])
         Q, R = qr(reshape(G[i], dim_current_core[1], (dim_current_core[2] * dim_current_core[3])))
-
+        G[i] = Q
+        G[i-1] = mode_k_contraction(G[i-1], R, 3)
     end
 
+    for i in 1:(d-1)
+        dim_current_core = size(G[i])
+        reshaped_tensor = reshape(G[i], dim_current_core[1], (dim_current_core[2] * dim_current_core[3]))
+        G[i], V, D = svd(reshaped_tensor)
+        added_matrix = V * D
+        G[i+1] = mode_k_contraction(G[k+1], added_matrix, 1)
+    end
+    return G
 end 
