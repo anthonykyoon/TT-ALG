@@ -1,5 +1,5 @@
 using LinearAlgebra
-
+#redunant code 
 
 function summing(limit::Float64, array_1: any)
     counter = 0
