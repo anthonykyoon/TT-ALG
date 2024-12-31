@@ -171,9 +171,8 @@ function TT_SVD_1(input_tensor::Any, error)
         U, S, V = svd(W)
         # #truncation step 
         cumsum_singular = cumsum(S.^2)
-        singular_squared = sum(S.^2)
 
-        cutoff = findfirst(cumsum_singular.> (singular_squared - trunc_param^2))
+        cutoff = findlast(cumsum_singular.<= trunc_param^2)
         
         if cutoff === nothing
             throw("there exists no cutoff")
@@ -216,9 +215,20 @@ function TT_Round(input_tt:: Array{Float64}, error_threshold::Float64)
     for i in 1:(d-1)
         dim_current_core = size(G[i])
         reshaped_tensor = reshape(G[i], dim_current_core[1], (dim_current_core[2] * dim_current_core[3]))
-        G[i], V, D = svd(reshaped_tensor)
-        added_matrix = V * D
-        G[i+1] = mode_k_contraction(G[k+1], added_matrix, 1)
+        U, S, V = svd(reshaped_tensor)
+
+        #truncation step 
+        cumsum_squared = cumsum(S.^2)
+        cutoff = findlast(cumsum_squared.<=  trunc_param^2)
+
+        if cutoff === nothing 
+            throw("cutoff does not exists")
+        end
+
+        G[i] = U[:, 1:cutoff]
+        S = Diagonal(S[1:cutoff])
+        V_Trunc = V[1:cutoff, :]
+        G[i+1] = S * V_Trunc
     end
     return G
 end 
