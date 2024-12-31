@@ -111,14 +111,15 @@ function TT_SVD_1(input_tensor::Any, error)
     #storing the tensor train 
     tt_train = Vector{Any}(undef, d)
     #Frobeius Norm 
-    trunc_param = error / sqrt(d - 1 ) * sqrt(sum(abs2, input_tensor))
+    frob_norm = sqrt(sum(abs2, input_tensor))
+    trunc_param = error / sqrt(d - 1 ) * frob_norm
+    println("frob norm = $frob_norm")
     #Copying the tensor over 
     W = copy(input_tensor)
     #dimension of each index
     n = size(input_tensor)
     #temporary ranks of the tensor train 
     r =  ones(d)
-    print(r)
     remaining_index = 0
     #SVD 
     #Use the reshaping matrix and dimension manipulation to do this. 
@@ -171,8 +172,9 @@ function TT_SVD_1(input_tensor::Any, error)
         U, S, V = svd(W)
         # #truncation step 
         cumsum_singular = cumsum(S.^2)
+        singular_squared = sum(S.^2)
 
-        cutoff = findlast(cumsum_singular.<= trunc_param^2)
+        cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param))
         
         if cutoff === nothing
             throw("there exists no cutoff")
@@ -185,13 +187,14 @@ function TT_SVD_1(input_tensor::Any, error)
         println(r[i])
         tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
         W = S_trunc * (V_trunc)
+        print("done with iteration $i")
     end
     tt_train[d] = W
     println("Done, successful completion")
     return tt_train 
 end
 
-function TT_Round(input_tt:: Array{Float64}, error_threshold::Float64)
+function TT_Round(input_tt:: Any, error_threshold::Float64)
     # #Store the tensor cores 
     # TT_cores = Vector{Any}(undef, d)
     #How long TT is 
@@ -201,25 +204,27 @@ function TT_Round(input_tt:: Array{Float64}, error_threshold::Float64)
     #Rank of Each Core 
     tt_norm = norm(input_tt, "fro")
     #Truncation Parameter 
-    trunc_parameter = (error_threshold) / (sqrt(d - 1)) * tt_norm
+    trunc_param = (error_threshold) / (sqrt(d - 1)) * tt_norm
 
 
     #Q and R can be computed by the rehspaingof the tensor G_k by reshaping it into r_{k-1} times n_k r_k
     for i in d:2:(-1)
         dim_current_core = size(G[i])
-        Q, R = qr(reshape(G[i], dim_current_core[1], (dim_current_core[2] * dim_current_core[3])))
+        Q, R = qr(reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3])))
         G[i] = Q
         G[i-1] = mode_k_contraction(G[i-1], R, 3)
     end
 
     for i in 1:(d-1)
         dim_current_core = size(G[i])
-        reshaped_tensor = reshape(G[i], dim_current_core[1], (dim_current_core[2] * dim_current_core[3]))
+        reshaped_tensor = reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3]))
         U, S, V = svd(reshaped_tensor)
 
         #truncation step 
-        cumsum_squared = cumsum(S.^2)
-        cutoff = findlast(cumsum_squared.<=  trunc_param^2)
+        cumsum_singular = cumsum(S.^2)
+        singular_squared = sum(S.^2)
+
+        cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param))
 
         if cutoff === nothing 
             throw("cutoff does not exists")

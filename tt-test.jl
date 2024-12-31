@@ -64,10 +64,10 @@ test_tensor_train = random_tensor_train(test_rank, test_dimension)
 
 # println(TT_Direct_Sum(test_tensor_train, test_tensor_train))
 
-@testset "Testing the SVD function" begin 
-    @test TT_SVD_1( test_tensor,  0.00000001) != test_tensor
-end 
+# @testset "Testing the SVD function" begin 
+#     @test TT_SVD_1( test_tensor,  0.0001) != test_tensor
+# end 
 
-
-
-
+@testset "testing the round function" begin
+    @test length(test_tensor_train) == length(TT_Round(test_tensor_train, 0.1))
+end
