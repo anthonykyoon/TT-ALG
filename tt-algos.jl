@@ -2,6 +2,9 @@ using LinearAlgebra
 
 #helper functions
 function mode_k_contraction(base, added, k::Int64)
+    """
+    Legacy helping function, used this in my first version of TT-Round 
+    """
     #performing the actual contraction itself
     base_perm = permutedims(base, [setdiff(1:ndims(base), [k])...])
     base_reshaped = reshape(base_perm, size(base)[k], : )
@@ -10,7 +13,7 @@ function mode_k_contraction(base, added, k::Int64)
     #rearranging the indicies so that the tensor_interest has the same indices but k 
     indices = dims(base)
     indices[k] = size(added, 1)
-    return reshape(tensor_interest, indicies)
+    return reshape(tensor_interest, indices)
 end
 
 function tt_contraction(tt_train::Any)
@@ -225,6 +228,7 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
     # TT_cores = Vector{Any}(undef, d)
     #How long TT is 
     d = length(input_tt)
+    println("d = $d")
     #Copying the input_tt over
     G = copy(input_tt)
     #Rank of Each Core 
@@ -248,7 +252,9 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
     for i in 1:(d-1)
         println("iteration $i")
         dim_current_core = size(G[i])
+        print(dim_current_core)
         reshaped_tensor = reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3]))
+        println(reshaped_tensor)
         U, S, V = svd(reshaped_tensor)
 
         #truncation step 
@@ -267,6 +273,89 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
         S = Diagonal(S[1:cutoff])
         V_Trunc = V[1:cutoff, :]
         G[i+1] = S * V_Trunc
+        G[i] = reshape(G[i], dim_current_core[1], dim_current_core[2], dim_current_core[3])
     end
     return G
 end 
+
+function TT_Round_1(tt_train, error::Float64)
+    """
+    Second attempt at this. I'll add a nice docstring to this later. 
+    """
+    d = length(tt_train)
+    norm_tt = sqrt(sum(abs2, tt_contraction(tt_train)))
+    trunc_param = error * norm_tt / sqrt(d-1)
+
+    B = deepcopy(tt_train)
+
+    for k in reverse(2:d)
+        Gk = B[k]
+        rk_1, nk, rk = size(Gk)
+
+        folding_matrix = reshape(Gk, rk_1 * nk, rk)
+        Q, R  = qr(folding_matrix)
+
+        #index caused by the qr decomp 
+        middle_index = size(Q, 2)
+
+        B[k] = reshape(Gk, rk_1, nk, middle_index)
+
+        #contracting R into the matrix to the right of it 
+        Gprev = B[k-1]
+        p_rk_1, p_nk, p_rk = size(Gprev)
+        
+        #should match due to the mathematics of the QR decomposition
+        @assert p_rk == middle_index "These indices should match because of how the QR decomposition works"
+
+        Gprev_folding = reshape(Gprev, p_rk_1 * p_nk, p_rk )
+        final_result = Gprev_folding * R 
+        new_rk = dim(final_result, 2)
+        
+        #reshaping the final result 
+        B[k-1] = reshape(final_result, p_rk_1, p_nk, new_rk)
+    end
+
+    #SVD 
+    for k in 1:(d-1)
+        Gk = B[k]
+
+        rk_1, n_k, r_k = size(Gk)
+
+        folding_matrix = reshape(Gk, rk_1 * n_k, r_k)
+
+        #SVD
+        U, S, V = svd(folding_matrix)
+
+        #truncation step 
+        cumulsum = cumsum(S.^2)
+        total_singular_squared = cumulsum[end]
+
+        cutoff = total_singular_squared - trunc_param
+        cutoff_1 = searchsortedlast(cumulsum, cutoff)
+
+        #step to ensure if cutoff_1 == nothing, just make it 1
+        if cutoff_1 === Nothing
+            cutoff_1 = 1
+        end
+
+        #truncated matrices 
+        Utrunc = U[:1:cutoff_1]
+        Strunc = Diagonal(S[1:cutoff_1])
+        Vtrunc = V[:1:cutoff_1]
+
+        #new core
+        B[k] = reshape(Utrunc, rk_1, n_k, cutoff_1)
+
+        #storing result of S * v
+        M = S_trunc * V_trunc
+
+        #now contracting B_{k+1}
+        Gnext = G[k+1]
+        rk_cur, nkp1, rkp1 = size(Gnext)
+        Gnext_folding = reshape(Gnext, rk_cur, nkp1*rkp1)
+        final_folding = M * Gnext_folding
+        new_rk_cur = size(final_folding, 1)
+        B[k+1] = reshape(final_folding, new_rk_cur, nkp1, rkp1)
+    end
+    return B
+end
