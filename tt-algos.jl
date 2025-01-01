@@ -2,9 +2,6 @@ using LinearAlgebra
 
 #helper functions
 function mode_k_contraction(base, added, k::Int64)
-    """
-    Legacy helping function, used this in my first version of TT-Round 
-    """
     #performing the actual contraction itself
     base_perm = permutedims(base, [setdiff(1:ndims(base), [k])...])
     base_reshaped = reshape(base_perm, size(base)[k], : )
@@ -13,7 +10,7 @@ function mode_k_contraction(base, added, k::Int64)
     #rearranging the indicies so that the tensor_interest has the same indices but k 
     indices = dims(base)
     indices[k] = size(added, 1)
-    return reshape(tensor_interest, indices)
+    return reshape(tensor_interest, indicies)
 end
 
 function tt_contraction(tt_train::Any)
@@ -228,7 +225,6 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
     # TT_cores = Vector{Any}(undef, d)
     #How long TT is 
     d = length(input_tt)
-    println("d = $d")
     #Copying the input_tt over
     G = copy(input_tt)
     #Rank of Each Core 
@@ -252,9 +248,7 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
     for i in 1:(d-1)
         println("iteration $i")
         dim_current_core = size(G[i])
-        print(dim_current_core)
         reshaped_tensor = reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3]))
-        println(reshaped_tensor)
         U, S, V = svd(reshaped_tensor)
 
         #truncation step 
@@ -273,10 +267,10 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
         S = Diagonal(S[1:cutoff])
         V_Trunc = V[1:cutoff, :]
         G[i+1] = S * V_Trunc
-        G[i] = reshape(G[i], dim_current_core[1], dim_current_core[2], dim_current_core[3])
     end
     return G
 end 
+<<<<<<< HEAD
 
 function TT_Round_1(tt_train, error::Float64)
     """
@@ -365,3 +359,5 @@ function TT_Round_1(tt_train, error::Float64)
     end
     return B
 end
+=======
+>>>>>>> parent of 57496af (did another version of the TT-Round algo)

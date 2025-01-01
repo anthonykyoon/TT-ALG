@@ -40,7 +40,7 @@ function random_tensor_train(ranks::Vector{Int}, dimension::Vector{Int})
     for index in 1:d
         tensor_train[index] = rand(ranks[index], dimension[index], ranks[index + 1])
     end 
-
+    print(tensor)
     return tensor_train
 end
 
