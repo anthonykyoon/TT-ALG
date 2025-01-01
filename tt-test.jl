@@ -70,5 +70,5 @@ test_tensor_train = random_tensor_train(test_rank, test_dimension)
 # end 
 
 @testset "testing the round function" begin
-    @test length(test_tensor_train) == length(TT_Round(test_tensor_train, 0.00000000000000000000000000000001))
+    @test length(test_tensor_train) == length(TT_Round_1(test_tensor_train, 0.00000000000000000000000000000001))
 end
