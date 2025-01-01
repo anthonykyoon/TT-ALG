@@ -270,8 +270,6 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
     end
     return G
 end 
-<<<<<<< HEAD
-<<<<<<< HEAD
 
 function TT_Round_1(tt_train, error::Float64)
     """
@@ -360,7 +358,4 @@ function TT_Round_1(tt_train, error::Float64)
     end
     return B
 end
-=======
->>>>>>> parent of 57496af (did another version of the TT-Round algo)
-=======
->>>>>>> parent of 57496af (did another version of the TT-Round algo)
+
