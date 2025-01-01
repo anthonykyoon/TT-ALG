@@ -17,22 +17,22 @@ function tt_contraction(tt_train::Any)
     """
     Make the tensor train back into a tensor. 
     """
-    @assert length(dims(tensor_train[1])) == 3
+    @assert length(size(tt_train[1])) == 3
     d = length(tt_train)
 
     #storing the middle indicies
-    middle_indices = Vector{Int}(Any, d)
-    dimensions_1 = dims(tensor_train[1])
+    middle_indices = Vector{Any}(undef, d)
+    dimensions_1 = size(tt_train[1])
     middle_indices[1] = dimensions_1[2]
     first = reshape(tt_train[1],dimensions_1[1]* dimensions_1[2], dimensions_1[3])
     for iteration in 2:d
         interest_tensor_dims = size(tt_train[iteration])
         middle_indices[iteration] = interest_tensor_dims[2]
         interest_tensor = reshape(tt_train[iteration], interest_tensor_dims[1], interest_tensor_dims[2] * interest_tensor_dims[3])
-        @assert  dims(first)[end] == dims(interest_tensor)[1] "contraction cannot commence due to mismatch of indices"
+        @assert  size(first)[end] == size(interest_tensor)[1] "contraction cannot commence due to mismatch of indices"
         first = first * interest_tensor
         updated_first_dims = size(first)
-        first = reshape(first, updated_first_dims[1] * interest_tensor_dims[2], updated_first_dims[2] / interest_tensor_dims[2])
+        first = reshape(first, Int(updated_first_dims[1] * interest_tensor_dims[2]), Int(updated_first_dims[2] / interest_tensor_dims[2]))
     end
     first = reshape(first, middle_indices...)
     @assert ndims(first) == d "the tensor indices do not align with the cores of the train"
@@ -200,7 +200,7 @@ function TT_SVD_1(input_tensor::Any, error)
         cumsum_singular = cumsum(S.^2)
         singular_squared = sum(S.^2)
 
-        cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param))
+        cutoff = findfirst(cumsum_singular.<= (singular_squared - trunc_param))
         
         if cutoff === nothing
             throw("there exists no cutoff")
@@ -229,7 +229,7 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
     G = copy(input_tt)
     #Rank of Each Core 
     #TODO fix the frobenius norm 
-    tt_norm = norm(input_tt, "fro")
+    tt_norm = sqrt(sum(abs2, tt_contraction(G)))
     #Truncation Parameter 
     trunc_param = (error_threshold) / (sqrt(d - 1)) * tt_norm
 
@@ -239,18 +239,24 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
         dim_current_core = size(G[i])
         Q, R = qr(reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3])))
         G[i] = Q
+        #need to reshape this tensor 
+        new_dim_core = size(G[i])
+        G[i] = reshape(G[i], new_dim_core[1], new_dim_core[2], new_dim_core[3])
         G[i-1] = mode_k_contraction(G[i-1], R, 3)
     end
 
     for i in 1:(d-1)
+        println("iteration $i")
         dim_current_core = size(G[i])
         reshaped_tensor = reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3]))
         U, S, V = svd(reshaped_tensor)
 
         #truncation step 
+        println(S)
         cumsum_singular = cumsum(S.^2)
         singular_squared = sum(S.^2)
-
+        println(cumsum_singular)
+        println(singular_squared)
         cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param))
 
         if cutoff === nothing 

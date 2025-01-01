@@ -4,7 +4,7 @@ using Random
 include("tt-algos.jl")
 
 
-Random.seed!(1234)
+Random.seed!(12345)
 
 function random_tensor(dimension::Int)
     dim_1 = 2
@@ -37,17 +37,18 @@ function random_tensor_train(ranks::Vector{Int}, dimension::Vector{Int})
     tensor_train = Vector{Any}(undef, d)
 
     #storing the the tensors now 
-    for index in 1:length(dimension)
+    for index in 1:d
         tensor_train[index] = rand(ranks[index], dimension[index], ranks[index + 1])
     end 
+    print(tensor)
     return tensor_train
 end
 
 #Building the test tensor and tensor trains
 test_tensor = random_tensor(3)
 
-test_rank = [1, 3, 2, 4, 1, 1]
-test_dimension = [2, 1, 3, 2, 4]
+test_rank = [1, 3, 2, 4, 9, 1]
+test_dimension = [3, 4, 3, 2, 4]
 
 test_tensor_train = random_tensor_train(test_rank, test_dimension)
 
@@ -69,5 +70,5 @@ test_tensor_train = random_tensor_train(test_rank, test_dimension)
 # end 
 
 @testset "testing the round function" begin
-    @test length(test_tensor_train) == length(TT_Round(test_tensor_train, 0.1))
+    @test length(test_tensor_train) == length(TT_Round(test_tensor_train, 0.00000000000000000000000000000001))
 end
