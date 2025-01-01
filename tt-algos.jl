@@ -13,6 +13,32 @@ function mode_k_contraction(base, added, k::Int64)
     return reshape(tensor_interest, indicies)
 end
 
+function tt_contraction(tt_train::Any)
+    """
+    Make the tensor train back into a tensor. 
+    """
+    @assert length(dims(tensor_train[1])) == 3
+    d = length(tt_train)
+
+    #storing the middle indicies
+    middle_indices = Vector{Int}(Any, d)
+    dimensions_1 = dims(tensor_train[1])
+    middle_indices[1] = dimensions_1[2]
+    first = reshape(tt_train[1],dimensions_1[1]* dimensions_1[2], dimensions_1[3])
+    for iteration in 2:d
+        interest_tensor_dims = size(tt_train[iteration])
+        middle_indices[iteration] = interest_tensor_dims[2]
+        interest_tensor = reshape(tt_train[iteration], interest_tensor_dims[1], interest_tensor_dims[2] * interest_tensor_dims[3])
+        @assert  dims(first)[end] == dims(interest_tensor)[1] "contraction cannot commence due to mismatch of indices"
+        first = first * interest_tensor
+        updated_first_dims = size(first)
+        first = reshape(first, updated_first_dims[1] * interest_tensor_dims[2], updated_first_dims[2] / interest_tensor_dims[2])
+    end
+    first = reshape(first, middle_indices...)
+    @assert ndims(first) == d "the tensor indices do not align with the cores of the train"
+    return first
+end
+
 
 
 function padding_tensor(tensor::Any, target_index::Int128)
@@ -202,6 +228,7 @@ function TT_Round(input_tt:: Any, error_threshold::Float64)
     #Copying the input_tt over
     G = copy(input_tt)
     #Rank of Each Core 
+    #TODO fix the frobenius norm 
     tt_norm = norm(input_tt, "fro")
     #Truncation Parameter 
     trunc_param = (error_threshold) / (sqrt(d - 1)) * tt_norm
