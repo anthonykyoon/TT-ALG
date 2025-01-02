@@ -1,5 +1,6 @@
 using LinearAlgebra
 using TSVD
+using OffsetArrays
 
 
 #helper functions
@@ -186,11 +187,12 @@ function TT_SVD_1(input_tensor::Any, error)
     n = size(input_tensor)
     #temporary ranks of the tensor train 
     r =  ones(d+1)
+    r = OffsetArray(r, 0:(d))
     remaining_index = 0
     #SVD 
     #Use the reshaping matrix and dimension manipulation to do this. 
 
-    for i in 2:d
+    for i in 1:d-1
         try 
             # Try regular calculation of remaining_index
             remaining_index = Int(prod(size(W)) / (r[i-1] * n[i]))
@@ -251,13 +253,11 @@ function TT_SVD_1(input_tensor::Any, error)
         S_trunc = diagm(S[cutoff:end])
         V_trunc = V[cutoff:end, :]
         r[i] = rank(U_trunc * S_trunc * Transpose(V_trunc))
-        println(r[i])
+
         tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
         W = S_trunc * Transpose(V_trunc)
-        println("done with iteration $i")
     end
     tt_train[d] = W
-    print(tt_train)
     return tt_train 
 end
 
@@ -323,7 +323,6 @@ function TT_Round_1(tt_train, error::Float64)
     B = deepcopy(tt_train)
 
     for k in reverse(2:d)
-        println("k = $k")
         Gk = B[k]
         rk_1, nk, rk = size(Gk)
         folding_matrix = reshape(Gk, rk_1, nk * rk)
@@ -338,9 +337,6 @@ function TT_Round_1(tt_train, error::Float64)
 
         Q = Matrix(F.Q)
         R = F.R
-        println("Q")
-        println(size(Q))
-        println(size(R))
         #index caused by the qr decomp 
         middle_index = size(Q, 2)
 
@@ -353,7 +349,7 @@ function TT_Round_1(tt_train, error::Float64)
 
         #TODO check this math 
         Gprev_folding = reshape(Gprev, p_rk_1 * p_nk, p_rk )
-        final_result =   Gprev_folding * R
+        final_result =   Gprev_folding * Transpose(R)
         new_rk = size(final_result, 2)
         
         #reshaping the final result 
@@ -363,7 +359,7 @@ function TT_Round_1(tt_train, error::Float64)
     #SVD 
     for k in 1:(d-1)
         Gk = B[k]
-
+        print("iteration is equal to $k")
         rk_1, n_k, r_k = size(Gk)
 
         folding_matrix = reshape(Gk, rk_1 * n_k, r_k)
@@ -372,27 +368,24 @@ function TT_Round_1(tt_train, error::Float64)
         U, S, V = svd(folding_matrix)
 
         #truncation step 
-        cumulsum = cumsum(S.^2)
-        total_singular_squared = cumulsum[end]
+        cumsum_singular = cumsum(S.^2)
+        singular_squared = sum(S.^2)
 
-        cutoff = total_singular_squared - trunc_param
-        cutoff_1 = searchsortedlast(cumulsum, cutoff)
+        cutoff = findfirst(cumsum_singular.<= (singular_squared - trunc_param^2))
+        
 
-        #step to ensure if cutoff_1 == nothing, just make it 1
-        if cutoff_1 === Nothing
-            cutoff_1 = 1
-        end
+        if cutoff === nothing
+            cutoff = 1
+        end 
 
-        #truncated matrices 
-        Utrunc = U[:1:cutoff_1]
-        Strunc = Diagonal(S[1:cutoff_1])
-        Vtrunc = V[:1:cutoff_1]
-
+        Utrunc = U[:, cutoff:end]
+        Strunc = diagm(S[cutoff:end])
+        Vtrunc = V[cutoff:end, :]
         #new core
-        B[k] = reshape(Utrunc, rk_1, n_k, cutoff_1)
+        B[k] = reshape(Utrunc, rk_1, n_k, cutoff)
 
         #storing result of S * v
-        M = Strunc * Vtrunc
+        M = Strunc * Transpose(Vtrunc)
 
         #now contracting B_{k+1}
         #TODO verify this step 
