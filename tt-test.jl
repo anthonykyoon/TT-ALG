@@ -4,7 +4,7 @@ using Random
 include("tt-algos.jl")
 
 
-Random.seed!(12345)
+Random.seed!(1234551242032420691223412345678908765432345654326912124206912121223456756453642531452435746564523142324536547581)
 
 function random_tensor(dimension::Int)
     dim_1 = 2
@@ -64,10 +64,10 @@ test_tensor_train = random_tensor_train(test_rank, test_dimension)
 
 # println(TT_Direct_Sum(test_tensor_train, test_tensor_train))
 
-# @testset "Testing the SVD function" begin 
-#     @test TT_SVD_1( test_tensor,  0.0001) != test_tensor
-# end 
+@testset "Testing the SVD function" begin 
+    @test TT_SVD_1(test_tensor,  0.0001) != test_tensor
+end 
 
-@testset "testing the round function" begin
-    @test length(test_tensor_train) == length(TT_Round_1(test_tensor_train, 0.00000000000000000000000000000001))
-end
+# @testset "testing the round function" begin
+#     @test length(test_tensor_train) == length(TT_Round_1(test_tensor_train, 0.00000000000000000000000000000001))
+# end

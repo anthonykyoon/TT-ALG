@@ -1,4 +1,6 @@
 using LinearAlgebra
+using TSVD
+
 
 #helper functions
 function mode_k_contraction(base, added, k::Int64)
@@ -38,6 +40,17 @@ function tt_contraction(tt_train::Any)
     @assert ndims(first) == d "the tensor indices do not align with the cores of the train"
     return first
 end
+
+# function rq(A::Any)
+#     """
+#     RQ decomposition because QR doesn't make sense. 
+#     """
+#     Arev = reverse(A, dims = 2)
+#     F = qr(Arev)
+#     R_ = reverse(F.R, dims = 2)
+#     Q_ = reverse(F.Q, dims = 2)
+#     return R_, Q_
+# end 
 
 
 
@@ -131,7 +144,34 @@ function TT_Direct_Sum(tt_a, tt_b)
     return tt_sum
 end 
 
-function TT_SVD(input_tensor::Any, error)
+# function TT_SVD(input_tensor::Any, error::Any, r_max ::Any)
+#     @assert r_max >=1 
+#     d = ndims(input_tensor)
+#     tt_train = Vector{Any}(undef, d)
+#     n = size(input_tensor)
+#     trunc_param = error * sqrt(sum(abs2, input_tensor)) / sqrt(d-1)
+#     r = ones(Int128, d+1)
+#     C = deepcopy(input_tensor)
+
+#     for k in 2:(d)
+#         C = reshape(C, Int(r[k-1] * n[k]), Int(prod(n)/(r[k-1] * n[k])))
+#         U, S, V = svd(C)
+#         cumsum_singular = cumsum(S.^2)
+#         singular_squared = sum(S.^2)
+
+#         cutoff = findlast(cumsum_singular.>=(singular_squared - trunc_param))
+#         cutoff = min(r_max, cutoff)
+#         Utrunc, Strunc, Vtrunc = tsvd(C, cutoff)
+#         Strunc = Diagonal(Strunc)
+#         r[k] = rank(Utrunc * Strunc * Vtrunc)
+#         G[k] = reshape(Utrunc, Int(r[k-1]), n[k], Int(r[k]))
+#         C = Strunc * VTrunc
+#     end 
+#     return tt_train
+# end
+
+
+function TT_SVD_1(input_tensor::Any, error)
     #rank of the tensor
     d = ndims(input_tensor)
     #storing the tensor train 
@@ -145,7 +185,7 @@ function TT_SVD(input_tensor::Any, error)
     #dimension of each index
     n = size(input_tensor)
     #temporary ranks of the tensor train 
-    r =  ones(d)
+    r =  ones(d+1)
     remaining_index = 0
     #SVD 
     #Use the reshaping matrix and dimension manipulation to do this. 
@@ -190,7 +230,7 @@ function TT_SVD(input_tensor::Any, error)
             end
         end
         if remaining_index == 0
-            throw("remaining_index was not assigned! Check logic.")
+            throw("index is somehow 0")
         end
 
         println("now reshaping")
@@ -200,23 +240,24 @@ function TT_SVD(input_tensor::Any, error)
         cumsum_singular = cumsum(S.^2)
         singular_squared = sum(S.^2)
 
-        cutoff = findfirst(cumsum_singular.<= (singular_squared - trunc_param))
+        cutoff = findfirst(cumsum_singular.<= (singular_squared - trunc_param^2))
         
+
         if cutoff === nothing
-            throw("there exists no cutoff")
+            cutoff = 1
         end 
 
-        U_trunc = U[:, 1:cutoff]
-        S_trunc = diagm(S[1:cutoff])
-        V_trunc = V[1:cutoff, :]
-        r[i] = rank(U_trunc * S_trunc * V_trunc)
+        U_trunc = U[:, cutoff:end]
+        S_trunc = diagm(S[cutoff:end])
+        V_trunc = V[cutoff:end, :]
+        r[i] = rank(U_trunc * S_trunc * Transpose(V_trunc))
         println(r[i])
         tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
-        W = S_trunc * (V_trunc)
-        print("done with iteration $i")
+        W = S_trunc * Transpose(V_trunc)
+        println("done with iteration $i")
     end
     tt_train[d] = W
-    println("Done, successful completion")
+    print(tt_train)
     return tt_train 
 end
 
@@ -286,10 +327,20 @@ function TT_Round_1(tt_train, error::Float64)
         Gk = B[k]
         rk_1, nk, rk = size(Gk)
         folding_matrix = reshape(Gk, rk_1, nk * rk)
-        F  = qr(transpose(folding_matrix))
+        
+        #experimenting with RQ 
+        # F = lq(transpose(folding_matrix))
+
+        # R = F.L
+        # Q = Matrix(F.Q)
+        
+        F  = qr(Transpose(folding_matrix))
 
         Q = Matrix(F.Q)
         R = F.R
+        println("Q")
+        println(size(Q))
+        println(size(R))
         #index caused by the qr decomp 
         middle_index = size(Q, 2)
 
@@ -300,8 +351,9 @@ function TT_Round_1(tt_train, error::Float64)
         p_rk_1, p_nk, p_rk = size(Gprev)
         #should match due to the mathematics of the QR decomposition
 
+        #TODO check this math 
         Gprev_folding = reshape(Gprev, p_rk_1 * p_nk, p_rk )
-        final_result = Gprev_folding * R'
+        final_result =   Gprev_folding * R
         new_rk = size(final_result, 2)
         
         #reshaping the final result 
