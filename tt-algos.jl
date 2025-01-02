@@ -282,11 +282,11 @@ function TT_Round_1(tt_train, error::Float64)
     B = deepcopy(tt_train)
 
     for k in reverse(2:d)
-        println("iteration = $k")
+        println("k = $k")
         Gk = B[k]
         rk_1, nk, rk = size(Gk)
         folding_matrix = reshape(Gk, rk_1, nk * rk)
-        F  = qr(folding_matrix)
+        F  = qr(transpose(folding_matrix))
 
         Q = Matrix(F.Q)
         R = F.R
@@ -298,16 +298,11 @@ function TT_Round_1(tt_train, error::Float64)
         #contracting R into the matrix to the right of it 
         Gprev = B[k-1]
         p_rk_1, p_nk, p_rk = size(Gprev)
-        println(p_rk)
-        println(p_rk_1)
-        println(p_nk)
-        println(middle_index)
         #should match due to the mathematics of the QR decomposition
-        # @assert p_rk == middle_index "These indices should match because of how the QR decomposition works, at least theoritically"
 
         Gprev_folding = reshape(Gprev, p_rk_1 * p_nk, p_rk )
-        final_result = Gprev_folding * R 
-        new_rk = dim(final_result, 2)
+        final_result = Gprev_folding * R'
+        new_rk = size(final_result, 2)
         
         #reshaping the final result 
         B[k-1] = reshape(final_result, p_rk_1, p_nk, new_rk)
