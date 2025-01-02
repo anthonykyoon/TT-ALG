@@ -180,7 +180,6 @@ function TT_SVD_1(input_tensor::Any, error)
     #Frobeius Norm 
     frob_norm = sqrt(sum(abs2, input_tensor))
     trunc_param = error / sqrt(d - 1 ) * frob_norm
-    println("frob norm = $frob_norm")
     #Copying the tensor over 
     W = copy(input_tensor)
     #dimension of each index
@@ -237,21 +236,28 @@ function TT_SVD_1(input_tensor::Any, error)
 
         println("now reshaping")
         W = reshape(W, Int(r[i-1] * n[i]),  remaining_index)
-        U, S, V = svd(W)
+        F = svd(W)
+        U = F.U
+        S = F.S
+        V = F.V
         # #truncation step 
         cumsum_singular = cumsum(S.^2)
         singular_squared = sum(S.^2)
 
-        cutoff = findfirst(cumsum_singular.<= (singular_squared - trunc_param^2))
+        cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param^2))
+        println("cutoff = $cutoff for iteration $i")
         
 
-        if cutoff === nothing
-            cutoff = 1
-        end 
+        # if cutoff === nothing
+        #     cutoff = 1
+        # end 
 
         U_trunc = U[:, cutoff:end]
         S_trunc = diagm(S[cutoff:end])
-        V_trunc = V[cutoff:end, :]
+        V_trunc = V[:, cutoff:end]
+        println(size(U_trunc))
+        println(size(S_trunc))
+        println(size(V_trunc))
         r[i] = rank(U_trunc * S_trunc * Transpose(V_trunc))
 
         tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
@@ -347,7 +353,6 @@ function TT_Round_1(tt_train, error::Float64)
         p_rk_1, p_nk, p_rk = size(Gprev)
         #should match due to the mathematics of the QR decomposition
 
-        #TODO check this math 
         Gprev_folding = reshape(Gprev, p_rk_1 * p_nk, p_rk )
         final_result =   Gprev_folding * Transpose(R)
         new_rk = size(final_result, 2)
@@ -375,13 +380,16 @@ function TT_Round_1(tt_train, error::Float64)
         
 
         if cutoff === nothing
-            cutoff = 1
+            println("reassigment of cutoff to 1")
+            cutoff = 1 
         end 
 
         Utrunc = U[:, cutoff:end]
         Strunc = diagm(S[cutoff:end])
-        Vtrunc = V[cutoff:end, :]
+        Vtrunc = V[:, cutoff:end]
         #new core
+        println("cutoff = $cutoff \n")
+        #TODO dimension mismatch for some reason 
         B[k] = reshape(Utrunc, rk_1, n_k, cutoff)
 
         #storing result of S * v
