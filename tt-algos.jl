@@ -48,6 +48,10 @@ function tt_contraction(tt_train::Any)
     return first
 end
 
+function frobenius_tt_1(tt_train::Any)
+    return sqrt(sum(abs2, tt_contraction(tt_train)))
+end
+
 function frobenius_tt(tt::Any) 
     d = length(tt)
     # F is our accumulator for the partial inner product
@@ -235,17 +239,17 @@ function TT_SVD_1(input_tensor::Any, error)
             throw("index is somehow 0")
         end
 
-        println("now reshaping")
         W = reshape(W, Int(r[i-1] * n[i]),  remaining_index)
         F = svd(W)
         U = F.U
         S = F.S
         V = F.V
+        S = reverse(S)
         # #truncation step 
         cumsum_singular = cumsum(S.^2)
         singular_squared = sum(S.^2)
 
-        cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param^2))
+        cutoff = findlast(cumsum_singular.>= (singular_squared - trunc_param^2))
         
 
         # if cutoff === nothing
@@ -335,7 +339,7 @@ function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
     
         Q, R = rq(folding_matrix)
         middle_index = size(Q, 1)
-        B[k] = reshape(Q, middle_index, nk, rk)
+        B[k] = reshape(Transpose(Q), middle_index, nk, rk)
 
         # F  = qr(Transpose(folding_matrix))
 
@@ -355,11 +359,9 @@ function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
 
         final_result =   Gprev_folding * R
         new_rk = size(final_result, 2)
-        
         #reshaping the final result 
         B[k-1] = reshape(final_result, p_rk_1, p_nk, new_rk)
     end
-    println("now doing the SVD")
     #SVD 
     for k in 1:(d-1)
         Gk = B[k]
@@ -369,19 +371,19 @@ function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
 
         #SVD
         U, S, V = svd(folding_matrix)
-
         #truncation step 
+        S = reverse(S)
         cumsum_singular = cumsum(S.^2)
         singular_squared = sum(S.^2)
-
-        cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param^2))
-        println("The length of S is $(length(S))")
-        println("The cutoff is $cutoff")
-
+        println("Iteration $k")
+        println(S)
+        cutoff = findlast(cumsum_singular.>= (singular_squared - trunc_param^2))
+        println(S[cutoff:end])
         if cutoff === nothing
-            println("reassigment of cutoff to length of S")
-            cutoff = length(S)
+            println("reassigment of cutoff to length of 1")
+            cutoff = 1
         end 
+        println("cutoff = $cutoff")
 
         Utrunc = U[:, cutoff:end]
         Strunc = diagm(S[cutoff:end])
@@ -404,4 +406,5 @@ function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
     end
     return B
 end
+
 
