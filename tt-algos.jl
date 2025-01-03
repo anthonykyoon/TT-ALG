@@ -29,10 +29,16 @@ function tt_contraction(tt_train::Any)
     middle_indices[1] = dimensions_1[2]
     first = reshape(tt_train[1],dimensions_1[1]* dimensions_1[2], dimensions_1[3])
     for iteration in 2:d
+        print("iteration for the contraction is equal to $iteration \n" )
         interest_tensor_dims = size(tt_train[iteration])
         middle_indices[iteration] = interest_tensor_dims[2]
         interest_tensor = reshape(tt_train[iteration], interest_tensor_dims[1], interest_tensor_dims[2] * interest_tensor_dims[3])
-        @assert  size(first)[end] == size(interest_tensor)[1] "contraction cannot commence due to mismatch of indices"
+        if size(first)[end] != size(interest_tensor)[1] 
+            index1 = size(first)[end] 
+            index2 = size(interest_tensor)[1]
+            println("index 1 = $index1, index 2 = $index2 \n")
+            throw("contraction cannot commence due to mismatch of indices")
+        end
         first = first * interest_tensor
         updated_first_dims = size(first)
         first = reshape(first, Int(updated_first_dims[1] * interest_tensor_dims[2]), Int(updated_first_dims[2] / interest_tensor_dims[2]))
@@ -41,6 +47,33 @@ function tt_contraction(tt_train::Any)
     @assert ndims(first) == d "the tensor indices do not align with the cores of the train"
     return first
 end
+
+function frobenius_tt(tt::Any) 
+    d = length(tt)
+    # F is our accumulator for the partial inner product
+    # Start with a 1×1 array with value 1.0
+    F = [1.0]
+
+    # Loop over the d cores
+    for k in 1:d
+        core = tt[k]  # shape = (r_{k-1}, n_k, r_k)
+        (rL, n, rR) = size(core)
+        
+        F_new = zeros(rR, rR)
+        
+        # Contract over the n dimension
+        for i in 1:n
+            slice_i = @view core[:, i, :]  
+            F_new .+= (slice_i') * F * slice_i
+        end
+        
+        # Update F
+        F = F_new
+    end
+    
+    return sqrt(F[1, 1])  # Frobenius norm
+end
+
 
 function rq(A::Any)
     F = qr(Transpose(A))
@@ -93,7 +126,7 @@ function TT_Direct_Sum(tt_a, tt_b)
         end 
     end
     #Calculating the first core
-    tt_sum[1] = hcat(tt_a_interest, tt_b_interest)
+    tt_sum[1] = cat(tt_a_interest, tt_b_interest; dims=3)
 
     for tensor in 2:(d_a-1)
         #Retrieving information about the tensors copying for the case of padding 
@@ -136,7 +169,7 @@ function TT_Direct_Sum(tt_a, tt_b)
             tt_a_interest = padding_tensor(tt_a_interest, target_index)
         end 
     end
-    tt_sum[d_a] = vcat(tt_a_interest, tt_b_interest)
+    tt_sum[d_a] = cat(tt_a_interest, tt_b_interest; dims=1)
     return tt_sum
 end 
 
@@ -240,7 +273,6 @@ function TT_SVD_1(input_tensor::Any, error)
         singular_squared = sum(S.^2)
 
         cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param^2))
-        println("cutoff = $cutoff for iteration $i")
         
 
         # if cutoff === nothing
@@ -250,75 +282,74 @@ function TT_SVD_1(input_tensor::Any, error)
         U_trunc = U[:, cutoff:end]
         S_trunc = diagm(S[cutoff:end])
         V_trunc = V[:, cutoff:end]
-        println(size(U_trunc))
-        println(size(S_trunc))
-        println(size(V_trunc))
         r[i] = rank(U_trunc * S_trunc * Transpose(V_trunc))
 
         tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
         W = S_trunc * Transpose(V_trunc)
     end
-    tt_train[d] = W
+    
+    tt_train[d] = reshape(W, Int(r[d]), n[d], 1)
     return tt_train 
 end
 
-function TT_Round(input_tt:: Any, error_threshold::Float64)
-    # #Store the tensor cores 
-    # TT_cores = Vector{Any}(undef, d)
-    #How long TT is 
-    d = length(input_tt)
-    #Copying the input_tt over
-    G = copy(input_tt)
-    #Rank of Each Core 
-    #TODO fix the frobenius norm 
-    tt_norm = sqrt(sum(abs2, tt_contraction(G)))
-    #Truncation Parameter 
-    trunc_param = (error_threshold) / (sqrt(d - 1)) * tt_norm
+# function TT_Round(input_tt:: Any, error_threshold::Float64)
+#     # #Store the tensor cores 
+#     # TT_cores = Vector{Any}(undef, d)
+#     #How long TT is 
+#     d = length(input_tt)
+#     #Copying the input_tt over
+#     G = copy(input_tt)
+#     #Rank of Each Core 
+#     #TODO fix the frobenius norm 
+#     tt_norm = sqrt(sum(abs2, tt_contraction(G)))
+#     #Truncation Parameter 
+#     trunc_param = (error_threshold) / (sqrt(d - 1)) * tt_norm
 
 
-    #Q and R can be computed by the rehspaingof the tensor G_k by reshaping it into r_{k-1} times n_k r_k
-    for i in d:2:(-1)
-        dim_current_core = size(G[i])
-        Q, R = qr(reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3])))
-        G[i] = Q
-        #need to reshape this tensor 
-        new_dim_core = size(G[i])
-        G[i] = reshape(G[i], new_dim_core[1], new_dim_core[2], new_dim_core[3])
-        G[i-1] = mode_k_contraction(G[i-1], R, 3)
-    end
+#     #Q and R can be computed by the rehspaingof the tensor G_k by reshaping it into r_{k-1} times n_k r_k
+#     for i in d:2:(-1)
+#         dim_current_core = size(G[i])
+#         Q, R = qr(reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3])))
+#         G[i] = Q
+#         #need to reshape this tensor 
+#         new_dim_core = size(G[i])
+#         G[i] = reshape(G[i], new_dim_core[1], new_dim_core[2], new_dim_core[3])
+#         G[i-1] = mode_k_contraction(G[i-1], R, 3)
+#     end
 
-    for i in 1:(d-1)
-        println("iteration $i")
-        dim_current_core = size(G[i])
-        reshaped_tensor = reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3]))
-        U, S, V = svd(reshaped_tensor)
+#     for i in 1:(d-1)
+#         println("iteration $i")
+#         dim_current_core = size(G[i])
+#         reshaped_tensor = reshape(G[i], Int(dim_current_core[1]), Int(dim_current_core[2] * dim_current_core[3]))
+#         U, S, V = svd(reshaped_tensor)
 
-        #truncation step 
-        println(S)
-        cumsum_singular = cumsum(S.^2)
-        singular_squared = sum(S.^2)
-        println(cumsum_singular)
-        println(singular_squared)
-        cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param))
+#         #truncation step 
+#         println(S)
+#         cumsum_singular = cumsum(S.^2)
+#         singular_squared = sum(S.^2)
+#         println(cumsum_singular)
+#         println(singular_squared)
+#         cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param))
 
-        if cutoff === nothing 
-            throw("cutoff does not exists")
-        end
+#         if cutoff === nothing 
+#             throw("cutoff does not exists")
+#         end
 
-        G[i] = U[:, 1:cutoff]
-        S = Diagonal(S[1:cutoff])
-        V_Trunc = V[1:cutoff, :]
-        G[i+1] = S * V_Trunc
-    end
-    return G
-end 
+#         G[i] = U[:, 1:cutoff]
+#         S = Diagonal(S[1:cutoff])
+#         V_Trunc = V[1:cutoff, :]
+#         G[i+1] = S * V_Trunc
+#     end
+#     return G
+# end 
 
-function TT_Round_1(tt_train, error::Float64)
+function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
     """
     Second attempt at this. I'll add a nice docstring to this later. 
     """
+    @assert r_max >= 1 "r max must be at least 1"
     d = length(tt_train)
-    norm_tt = sqrt(sum(abs2, tt_contraction(tt_train)))
+    norm_tt = frobenius_tt(tt_train)
     trunc_param = error * norm_tt / sqrt(d-1)
 
     B = deepcopy(tt_train)
@@ -359,7 +390,6 @@ function TT_Round_1(tt_train, error::Float64)
     #SVD 
     for k in 1:(d-1)
         Gk = B[k]
-        print("iteration is equal to $k")
         rk_1, n_k, r_k = size(Gk)
 
         folding_matrix = reshape(Gk, rk_1 * n_k, r_k)
@@ -372,11 +402,12 @@ function TT_Round_1(tt_train, error::Float64)
         singular_squared = sum(S.^2)
 
         cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param^2))
-        
+        println("The length of S is $(length(S))")
+        println("The cutoff is $cutoff")
 
         if cutoff === nothing
-            println("reassigment of cutoff to 1")
-            cutoff = 1 
+            println("reassigment of cutoff to length of S")
+            cutoff = length(S)
         end 
 
         Utrunc = U[:, cutoff:end]
@@ -390,7 +421,6 @@ function TT_Round_1(tt_train, error::Float64)
         M = Strunc * Transpose(Vtrunc)
 
         #now contracting B_{k+1}
-        #TODO verify this step 
         Gnext = B[k+1]
 
         bk, n_k1, bk1 = size(Gnext)
