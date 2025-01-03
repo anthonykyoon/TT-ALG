@@ -42,17 +42,12 @@ function tt_contraction(tt_train::Any)
     return first
 end
 
-# function rq(A::Any)
-#     """
-#     RQ decomposition because QR doesn't make sense. 
-#     """
-#     Arev = reverse(A, dims = 2)
-#     F = qr(Arev)
-#     R_ = reverse(F.R, dims = 2)
-#     Q_ = reverse(F.Q, dims = 2)
-#     return R_, Q_
-# end 
-
+function rq(A::Any)
+    F = qr(Transpose(A))
+    R = Matrix(F.R)
+   Q = Matrix(F.Q)
+    return Transpose(Q), Transpose(R)
+end
 
 
 function padding_tensor(tensor::Any, target_index::Int128)
@@ -332,21 +327,20 @@ function TT_Round_1(tt_train, error::Float64)
         Gk = B[k]
         rk_1, nk, rk = size(Gk)
         folding_matrix = reshape(Gk, rk_1, nk * rk)
-        
-        #experimenting with RQ 
-        # F = lq(transpose(folding_matrix))
-
-        # R = F.L
-        # Q = Matrix(F.Q)
-        
-        F  = qr(Transpose(folding_matrix))
-
-        Q = Matrix(F.Q)
-        R = F.R
-        #index caused by the qr decomp 
-        middle_index = size(Q, 2)
-
+    
+    
+        Q, R = rq(folding_matrix)
+        middle_index = size(Q, 1)
         B[k] = reshape(Q, middle_index, nk, rk)
+
+        # F  = qr(Transpose(folding_matrix))
+
+        # Q = Matrix(F.Q)
+        # R = F.R
+        # #index caused by the qr decomp 
+        # middle_index = size(Q, 2)
+
+        # B[k] = reshape(Transpose(Q), middle_index, nk, rk)
 
         #contracting R into the matrix to the right of it 
         Gprev = B[k-1]
@@ -354,7 +348,8 @@ function TT_Round_1(tt_train, error::Float64)
         #should match due to the mathematics of the QR decomposition
 
         Gprev_folding = reshape(Gprev, p_rk_1 * p_nk, p_rk )
-        final_result =   Gprev_folding * Transpose(R)
+
+        final_result =   Gprev_folding * R
         new_rk = size(final_result, 2)
         
         #reshaping the final result 
@@ -376,20 +371,21 @@ function TT_Round_1(tt_train, error::Float64)
         cumsum_singular = cumsum(S.^2)
         singular_squared = sum(S.^2)
 
-        cutoff = findfirst(cumsum_singular.<= (singular_squared - trunc_param^2))
+        cutoff = findlast(cumsum_singular.<= (singular_squared - trunc_param^2))
         
 
         if cutoff === nothing
             println("reassigment of cutoff to 1")
             cutoff = 1 
         end 
-
+        println("cutoff = $cutoff")
         Utrunc = U[:, cutoff:end]
         Strunc = diagm(S[cutoff:end])
         Vtrunc = V[:, cutoff:end]
+        println(size(Utrunc))
+        println(size(Strunc))
+        println(size(Vtrunc))
         #new core
-        println("cutoff = $cutoff \n")
-        #TODO dimension mismatch for some reason 
         B[k] = reshape(Utrunc, rk_1, n_k, cutoff)
 
         #storing result of S * v
@@ -397,12 +393,13 @@ function TT_Round_1(tt_train, error::Float64)
 
         #now contracting B_{k+1}
         #TODO verify this step 
-        Gnext = G[k+1]
-        rk_cur, nkp1, rkp1 = size(Gnext)
-        Gnext_folding = reshape(Gnext, rk_cur, nkp1*rkp1)
-        final_folding = M * Gnext_folding
-        new_rk_cur = size(final_folding, 1)
-        B[k+1] = reshape(final_folding, new_rk_cur, nkp1, rkp1)
+        Gnext = B[k+1]
+
+        bk, n_k1, bk1 = size(Gnext)
+        Gnextfolding = reshape(Gnext, bk, n_k1 * bk1)
+        final_folding = M * Gnextfolding
+        gamma = size(final_folding, 1)
+        B[k+1] = reshape(final_folding, gamma, n_k1, bk1)
     end
     return B
 end
