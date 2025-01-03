@@ -173,33 +173,6 @@ function TT_Direct_Sum(tt_a, tt_b)
     return tt_sum
 end 
 
-# function TT_SVD(input_tensor::Any, error::Any, r_max ::Any)
-#     @assert r_max >=1 
-#     d = ndims(input_tensor)
-#     tt_train = Vector{Any}(undef, d)
-#     n = size(input_tensor)
-#     trunc_param = error * sqrt(sum(abs2, input_tensor)) / sqrt(d-1)
-#     r = ones(Int128, d+1)
-#     C = deepcopy(input_tensor)
-
-#     for k in 2:(d)
-#         C = reshape(C, Int(r[k-1] * n[k]), Int(prod(n)/(r[k-1] * n[k])))
-#         U, S, V = svd(C)
-#         cumsum_singular = cumsum(S.^2)
-#         singular_squared = sum(S.^2)
-
-#         cutoff = findlast(cumsum_singular.>=(singular_squared - trunc_param))
-#         cutoff = min(r_max, cutoff)
-#         Utrunc, Strunc, Vtrunc = tsvd(C, cutoff)
-#         Strunc = Diagonal(Strunc)
-#         r[k] = rank(Utrunc * Strunc * Vtrunc)
-#         G[k] = reshape(Utrunc, Int(r[k-1]), n[k], Int(r[k]))
-#         C = Strunc * VTrunc
-#     end 
-#     return tt_train
-# end
-
-
 function TT_SVD_1(input_tensor::Any, error)
     #rank of the tensor
     d = ndims(input_tensor)
