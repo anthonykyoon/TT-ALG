@@ -355,7 +355,7 @@ function TT_Round_1(tt_train, error::Float64)
         #reshaping the final result 
         B[k-1] = reshape(final_result, p_rk_1, p_nk, new_rk)
     end
-
+    println("now doing the SVD")
     #SVD 
     for k in 1:(d-1)
         Gk = B[k]
@@ -378,15 +378,13 @@ function TT_Round_1(tt_train, error::Float64)
             println("reassigment of cutoff to 1")
             cutoff = 1 
         end 
-        println("cutoff = $cutoff")
+
         Utrunc = U[:, cutoff:end]
         Strunc = diagm(S[cutoff:end])
         Vtrunc = V[:, cutoff:end]
-        println(size(Utrunc))
-        println(size(Strunc))
-        println(size(Vtrunc))
         #new core
-        B[k] = reshape(Utrunc, rk_1, n_k, cutoff)
+        newramk = size(Utrunc, 2)
+        B[k] = reshape(Utrunc, rk_1, n_k, newramk)
 
         #storing result of S * v
         M = Strunc * Transpose(Vtrunc)
