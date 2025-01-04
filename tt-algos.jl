@@ -150,6 +150,30 @@ function padding_tensor(tensor::Any, target_index::Int128)
     return padded_tensor
 end
 
+function trunc_svd(matrix::AbstractMatrix, trunc::Float64)
+    U, S, V = svd(matrix)
+    total_sqr = S.^2
+    leftover = total_sqr
+    V = transpose(V)
+    k = 0 
+    d = length(S)
+
+
+    for i in 1:d
+        leftover -= S[i]^2
+        if leftover <= trunc^2
+            k = i
+            break
+        end
+    end
+    if leftover > trunc^2
+        k = d
+    end 
+    Utrunc = U[:, 1:k]
+    Strunc = diagm(s[1:k])
+    Vtrunc =  V[1:k, :]
+    return Utrunc, Strunc, Vtrunc
+end
 
 #actual functions
 function TT_Direct_Sum(tt_a, tt_b)
@@ -292,6 +316,7 @@ function TT_SVD_1(input_tensor::Any, error)
         U = F.U
         S = F.S
         V = F.V
+        println(S)
         S = reverse(S)
         # #truncation step 
         cumsum_singular = cumsum(S.^2)
@@ -364,7 +389,6 @@ function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
         cumsum_singular = cumsum(S.^2)
         singular_squared = sum(S.^2)
         cutoff = findlast(cumsum_singular.>= (singular_squared - trunc_param^2))
-        println(S[cutoff:end])
         if cutoff === nothing
             println("reassigment of cutoff to length of 1")
             cutoff = 1
