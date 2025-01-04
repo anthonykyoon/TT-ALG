@@ -152,7 +152,7 @@ end
 
 function trunc_svd(matrix::AbstractMatrix, trunc::Float64)
     U, S, V = svd(matrix)
-    total_sqr = S.^2
+    total_sqr = sum(S.^2)
     leftover = total_sqr
     V = transpose(V)
     k = 0 
@@ -170,7 +170,7 @@ function trunc_svd(matrix::AbstractMatrix, trunc::Float64)
         k = d
     end 
     Utrunc = U[:, 1:k]
-    Strunc = diagm(s[1:k])
+    Strunc = diagm(S[1:k])
     Vtrunc =  V[1:k, :]
     return Utrunc, Strunc, Vtrunc
 end
@@ -312,30 +312,33 @@ function TT_SVD_1(input_tensor::Any, error)
         end
 
         W = reshape(W, Int(r[i-1] * n[i]),  remaining_index)
-        F = svd(W)
-        U = F.U
-        S = F.S
-        V = F.V
-        println(S)
-        S = reverse(S)
-        # #truncation step 
-        cumsum_singular = cumsum(S.^2)
-        singular_squared = sum(S.^2)
+        U_trunc, S_trunc, V_trunc = trunc_svd(W, trunc_param)
+        
+        
+        # F = svd(W)
+        # U = F.U
+        # S = F.S
+        # V = F.V
+        # println(S)
+        # S = reverse(S)
+        # # #truncation step 
+        # cumsum_singular = cumsum(S.^2)
+        # singular_squared = sum(S.^2)
 
-        cutoff = findlast(cumsum_singular.>= (singular_squared - trunc_param^2))
+        # cutoff = findlast(cumsum_singular.>= (singular_squared - trunc_param^2))
         
 
-        if cutoff === nothing
-            cutoff = 1
-        end 
+        # if cutoff === nothing
+        #     cutoff = 1
+        # end 
 
-        U_trunc = U[:, cutoff:end]
-        S_trunc = diagm(S[cutoff:end])
-        V_trunc = V[:, cutoff:end]
-        r[i] = rank(U_trunc * S_trunc * Transpose(V_trunc))
+        # U_trunc = U[:, cutoff:end]
+        # S_trunc = diagm(S[cutoff:end])
+        # V_trunc = V[:, cutoff:end]
+        r[i] = rank(U_trunc * S_trunc * (V_trunc))
 
         tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
-        W = S_trunc * Transpose(V_trunc)
+        W = S_trunc * (V_trunc)
     end
     
     tt_train[d] = reshape(W, Int(r[d-1]), n[d], 1)
@@ -383,26 +386,14 @@ function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
         folding_matrix = reshape(Gk, rk_1 * n_k, r_k)
 
         #SVD
-        U, S, V = svd(folding_matrix)
-        #truncation step 
-        S = reverse(S)
-        cumsum_singular = cumsum(S.^2)
-        singular_squared = sum(S.^2)
-        cutoff = findlast(cumsum_singular.>= (singular_squared - trunc_param^2))
-        if cutoff === nothing
-            println("reassigment of cutoff to length of 1")
-            cutoff = 1
-        end 
+        Utrunc, Strunc, Vtrunc = trunc_svd(folding_matrix, trunc_param)
 
-        Utrunc = U[:, cutoff:end]
-        Strunc = diagm(S[cutoff:end])
-        Vtrunc = V[:, cutoff:end]
-        #new core
-        newramk = size(Utrunc, 2)
-        B[k] = reshape(Utrunc, rk_1, n_k, newramk)
+        newrank = size(Utrunc, 2)
+        B[k] = reshape(Utrunc, rk_1, n_k, newrank)
+
 
         #storing result of S * v
-        M = Strunc * Transpose(Vtrunc)
+        M = Strunc * (Vtrunc)
 
         #now contracting B_{k+1}
         Gnext = B[k+1]
