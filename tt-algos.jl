@@ -151,6 +151,17 @@ function padding_tensor(tensor::Any, target_index::Int128)
 end
 
 function trunc_svd(matrix::AbstractMatrix, trunc::Float64)
+    """
+    Performs the δ truncated SVD 
+
+    Arguments:
+        matrix: The matrix to be truncated
+        trunc: The truncation parameter
+    Returns:
+        Utrunc: The trucnated U matrix
+        Strunc: The truncated Σ matrix
+        Vtrunc: The truncated V matrix    
+    """
     U, S, V = svd(matrix)
     total_sqr = sum(S.^2)
     leftover = total_sqr
@@ -346,11 +357,16 @@ function TT_SVD_1(input_tensor::Any, error)
 end
 
 
-function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
+function TT_Round_1(tt_train, error::Float64)
     """
-    Second attempt at this. I'll add a nice docstring to this later. 
+    Tensor Train Round algorithm, where we compress a tensor train 
+
+    Arguements:
+        tt_train: The tensor train to be compressed 
+        error: the maximum error term allowed
+    Returns:
+        B: The compressed tensor train
     """
-    @assert r_max >= 1 "r max must be at least 1"
     d = length(tt_train)
     norm_tt = frobenius_tt(tt_train)
     trunc_param = error * norm_tt / sqrt(d-1)
@@ -390,7 +406,6 @@ function TT_Round_1(tt_train, error::Float64, r_max:: Int64)
 
         newrank = size(Utrunc, 2)
         B[k] = reshape(Utrunc, rk_1, n_k, newrank)
-
 
         #storing result of S * v
         M = Strunc * (Vtrunc)
