@@ -26,6 +26,8 @@ function mode_k_contraction(base, added, k::Int64)
     return reshape(tensor_interest, indicies)
 end
 
+
+
 function tt_contraction(tt_train::Any)
     """
     Make the tensor train back into a tensor. 
@@ -325,27 +327,6 @@ function TT_SVD_1(input_tensor::Any, error)
         W = reshape(W, Int(r[i-1] * n[i]),  remaining_index)
         U_trunc, S_trunc, V_trunc = trunc_svd(W, trunc_param)
         
-        
-        # F = svd(W)
-        # U = F.U
-        # S = F.S
-        # V = F.V
-        # println(S)
-        # S = reverse(S)
-        # # #truncation step 
-        # cumsum_singular = cumsum(S.^2)
-        # singular_squared = sum(S.^2)
-
-        # cutoff = findlast(cumsum_singular.>= (singular_squared - trunc_param^2))
-        
-
-        # if cutoff === nothing
-        #     cutoff = 1
-        # end 
-
-        # U_trunc = U[:, cutoff:end]
-        # S_trunc = diagm(S[cutoff:end])
-        # V_trunc = V[:, cutoff:end]
         r[i] = rank(U_trunc * S_trunc * (V_trunc))
 
         tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
@@ -421,5 +402,7 @@ function TT_Round_1(tt_train, error::Float64)
     end
     return B
 end
+
+
 
 
