@@ -6,14 +6,8 @@ include("tt-algos.jl")
 #given a TT, we take lwo rank approximations of each node of the tensor train
 
 #Brainstorm 
-function right_left(tt_train, rank)
-    1+1 = 2
-end
 
-function left_right(tt_train, rank)
-    1+1 = 2
-end
-
+#so i need to take a n-dimenionaal tensor and transofrm it into the tensor train. I should impolement the greedy max vol algo first. 
 
 
 
