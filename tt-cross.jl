@@ -12,6 +12,13 @@ include("tt-algos.jl")
 
 #n by r, do the rows r by n do the columsn n by n i have no idea
 
+# function cart_to_tuple(cart :: CartesianIndex)
+#     for i in CartesianIndex
+
+#     end
+    
+# end
+
 
 function random_sub_matrix(inmatrix, r)
     """
@@ -59,15 +66,15 @@ function maxvol_square(inmatrix, tolerance, r)
     l = 1
     while condition == false
         B_l = inmatrix[:, J_l] * inv(A_0)
-    
         #checking if |b_{ij}| > 1 + tolerance
         if any(x -> x, B_l.>(1+ tolerance))
             println("row operations")
             bool_check = findall(x -> x > 1+ tolerance,  B_l)
             val_interest = maximum(B_l[bool_check])
             coordinates = findall(x -> x == val_interest, B_l)
-            i = coordinates[1]
-            j = coordinates[2] 
+            println(coordinates)
+            i = coordinates[1][1]
+            j = coordinates[1][2] 
             
             #replacement operation 
             #ith row of M 
@@ -80,7 +87,7 @@ function maxvol_square(inmatrix, tolerance, r)
             println("column operations")
             bool_check = findall(x -> x > 1 + tolerance, C_l)
             val_interest = maximum(C_l[bool_check])
-            coordinates = finall(x -> x == val_interest, C_l)
+            coordinates = findall(x -> x == val_interest, C_l)
             i = coordinates[1]
             j = coordinates[2]
 
