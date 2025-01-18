@@ -88,15 +88,16 @@ function maxvol_square(inmatrix, tolerance, r)
             bool_check = findall(x -> x > 1 + tolerance, C_l)
             val_interest = maximum(C_l[bool_check])
             coordinates = findall(x -> x == val_interest, C_l)
-            i = coordinates[1]
-            j = coordinates[2]
+            i = coordinates[1][1]
+            j = coordinates[1][2]
 
             #replacement operation
             col = copy(inmatrix[I_l, j])
             A_0[:, i] = col
         end
+        println("done with one iteration")
         if !(any(x -> x, B_l.>(1+ tolerance)) & any(x -> x, C_l.>(1+tolerance)))
-            condition == true
+            condition = true
         end
     end
     return A_0
