@@ -21,8 +21,9 @@ function random_sub_matrix(inmatrix, r)
     
     column_index = shuffle(1:dim_matrix[2])[1:r]
     row_index = shuffle(1:dim_matrix[1])[1:r]
-
-    sub_matrix = deepcopy(inmatrix[column_index: row_index])
+    # println(column_index)
+    # println(row_index)
+    sub_matrix = copy(inmatrix[row_index, column_index])
 
     if det(sub_matrix) == 0
         return random_sub_matrix(inmatrix, r)
@@ -57,16 +58,13 @@ function maxvol_square(inmatrix, tolerance, r)
     condition = false
     l = 1
     while condition == false
-        if !(any(x -> x, B_l.>(1+ tolerance)) & any(x -> x, C_l.>(1+tolerance)))
-            condition == true
-        end
-
         B_l = inmatrix[:, J_l] * inv(A_0)
     
         #checking if |b_{ij}| > 1 + tolerance
         if any(x -> x, B_l.>(1+ tolerance))
+            println("row operations")
             bool_check = findall(x -> x > 1+ tolerance,  B_l)
-            val_interest = max(B_l[bool_check])
+            val_interest = maximum(B_l[bool_check])
             coordinates = findall(x -> x == val_interest, B_l)
             i = coordinates[1]
             j = coordinates[2] 
@@ -79,8 +77,9 @@ function maxvol_square(inmatrix, tolerance, r)
         #checking if |c_{ij}| > 1 + tolerance
         C_l = inv(A_0) * inmatrix[I_l, :]
         if any(x -> x, C_l.>(1+tolerance))
+            println("column operations")
             bool_check = findall(x -> x > 1 + tolerance, C_l)
-            val_interest = max(C_l[bool_check])
+            val_interest = maximum(C_l[bool_check])
             coordinates = finall(x -> x == val_interest, C_l)
             i = coordinates[1]
             j = coordinates[2]
@@ -88,6 +87,9 @@ function maxvol_square(inmatrix, tolerance, r)
             #replacement operation
             col = copy(inmatrix[I_l, j])
             A_0[:, i] = col
+        end
+        if !(any(x -> x, B_l.>(1+ tolerance)) & any(x -> x, C_l.>(1+tolerance)))
+            condition == true
         end
     end
     return A_0
