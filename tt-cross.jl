@@ -50,14 +50,18 @@ function maxvol_square(inmatrix, tolerance, r)
     #intializing the submatrix
     A_0, J_l, I_l = random_sub_matrix(inmatrix, r)
     #intializing the list of submatrices. 
-    A_l = []
-    push!(A_l, A_0)
+    # A_l = []
+    # push!(A_l, A_0)
 
     #while loop to find the maxvol_sqaure
-    condition = False
+    condition = false
     l = 1
-    while condition == False
-        B_l = inmatrix[:, J_l] * inv(A_l[l])
+    while condition == false
+        if !(any(x -> x, B_l.>(1+ tolerance)) & any(x -> x, C_l.>(1+tolerance)))
+            condition == true
+        end
+
+        B_l = inmatrix[:, J_l] * inv(A_0)
     
         #checking if |b_{ij}| > 1 + tolerance
         if any(x -> x, B_l.>(1+ tolerance))
@@ -67,11 +71,26 @@ function maxvol_square(inmatrix, tolerance, r)
             i = coordinates[1]
             j = coordinates[2] 
             
-            #get the rows of each thingy 
-            
+            #replacement operation 
+            #ith row of M 
+            row = copy(inmatrix[i, J_l])
+            A_0[j, :] = row            #
         end
+        #checking if |c_{ij}| > 1 + tolerance
+        C_l = inv(A_0) * inmatrix[I_l, :]
+        if any(x -> x, C_l.>(1+tolerance))
+            bool_check = findall(x -> x > 1 + tolerance, C_l)
+            val_interest = max(C_l[bool_check])
+            coordinates = finall(x -> x == val_interest, C_l)
+            i = coordinates[1]
+            j = coordinates[2]
 
+            #replacement operation
+            col = copy(inmatrix[I_l, j])
+            A_0[:, i] = col
+        end
     end
+    return A_0
 end
 
 
