@@ -1,10 +1,10 @@
 using LinearAlgebra
 using Maxvol 
 using Random 
-include("tt-algos.jl")
+include("ACA-algos.jl")
 
-#there are two possiblities on this, we can either: Given tensor, we can decompose INTO tt 
-#given a TT, we take lwo rank approximations of each node of the tensor train
+#there are two possiblities on this, we can either: Given tensor, we can decompose INTO ACA 
+#given a ACA, we take lwo rank approximations of each node of the tensor train
 
 #Brainstorm 
 
@@ -40,7 +40,7 @@ function random_sub_matrix(inmatrix, r)
 end
 
 
-function maxvol_square(inmatrix, tolerance, r)
+function maxvol_square(inmatrix, tolerance, r, ACA:: Bool)
     """
     require an n x m matrix M. r times r submatrix A_o with det(A_o) neq 0
     tolerance > 0, l = 0, b_ij = inftyand A_l =A_o 
@@ -58,8 +58,6 @@ function maxvol_square(inmatrix, tolerance, r)
     #intializing the submatrix
     A_0, J_l, I_l = random_sub_matrix(inmatrix, r)
     #intializing the list of submatrices. 
-    # A_l = []
-    # push!(A_l, A_0)
 
     #while loop to find the maxvol_sqaure
     condition = false
@@ -95,12 +93,16 @@ function maxvol_square(inmatrix, tolerance, r)
             col = copy(inmatrix[I_l, j])
             A_0[:, i] = col
         end
-        println("done with one iteration")
         if !(any(x -> x, B_l.>(1+ tolerance)) & any(x -> x, C_l.>(1+tolerance)))
             condition = true
         end
     end
-    return A_0
+    if ACA
+        coordinates = findall(x -> x in A_0, inmatrix)
+        return A_0, coordinates
+    else
+        return A_0
+    end
 end
 
 
