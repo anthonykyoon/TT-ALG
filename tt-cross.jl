@@ -1,7 +1,6 @@
 using LinearAlgebra
 using Maxvol 
 using Random 
-include("ACA-algos.jl")
 
 #there are two possiblities on this, we can either: Given tensor, we can decompose INTO ACA 
 #given a ACA, we take lwo rank approximations of each node of the tensor train
@@ -105,23 +104,28 @@ function maxvol_square(inmatrix, tolerance, r, ACA:: Bool)
     end
 end
 
-function ACA_1(inmatrix, tolerance)
+function im_ACA(inmatrix, tolerance)
     #set R_0 = R. I = empty set, J = empty set 
     R_o = deepcopy(inmatrix)
+    dimensions = size(R_o)
     I = []
     J = []
-    in_fro = norm(inmatrix, "fro")
+    in_fro = norm(inmatrix)
     condition = true
     while condition == true
-        max_val = maximum(abs.R)
-        i_k, j_k = findall(x -> x == max_val, R_o)
-        push!(I, i_k)
-        push!(J, j_k)
+        max_val = maximum(abs.(R_o))
+        cart_index = findall(x -> x == max_val, R_o)
+        println(cart_index)
+        i = cart_index[1][1]
+        m = cart_index[1][2]
+        push!(I, i)
+        push!(J, m)
 
         delt = max_val 
-        u_k = R_o[:, j_k]
-        v_k = transpose(R_o[i_k, :]) / delt
-        R_o = R_o - u_k * transpose(v_k)
+        u_k = R_o[:, m]
+        u_k = reshape(u_k, dimensions[1] , 1)
+        v_k = R_o[i, :]' / delt
+        R_o = R_o - (u_k * v_k')
 
         if norm(R_o, "fro") <= tolerance * in_fro
             break
