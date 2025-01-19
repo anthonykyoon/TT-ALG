@@ -141,20 +141,21 @@ function TT_Cross_ACA(inmatrix, tolerance)
     tt_storage = []
     d = ndims(inmatrix)
     dims = size(inmatrix)
-    println(dims)
     W = deepcopy(inmatrix)
     for i in 1:d-1
         #begin reshaping the tensor 
         remaining_index = Int(prod(size(W)) / dims[i])
 
         folding_matrix = reshape(W, dims[i], remaining_index)
+        println(size(folding_matrix))
         I, J = im_ACA(folding_matrix, tolerance)
-        println(I)
-        println(J)
 
         C = folding_matrix[:, J]
         R = folding_matrix[I, :]
         A = folding_matrix[I,J]
+        println("size of C is $(size(C))")
+        println("size of A is $(size(A))")
+        println("size of R is $(size(R))")
 
         core = C * inv(A)
         dims_core = size(core)
@@ -163,13 +164,13 @@ function TT_Cross_ACA(inmatrix, tolerance)
             core = reshape(core, 1, dims[i], dims_core[2])
         else
             previous_core = tt_storage[i - 1]
-            core = reshape(core, size(previous_core)[3], dims[i], dims_core[2])
+            core = reshape(core, size(previous_core)[3], dims[i], Int(prod(size(core)) / ((size(previous_core)[3]) * dims[i])))
         end
         push!(tt_storage, core)
         W = R        
     end
     previous_core = tt_storage[i - 1]
     final_core = reshape(W, size(previous_core)[end], dims[end], 1)
-    push!(tt_storage, W)
+    push!(tt_storage, final_core)
     return tt_storage
 end
