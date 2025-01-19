@@ -116,15 +116,14 @@ function im_ACA(inmatrix, tolerance)
     println(in_fro)
     condition = true
     while condition == true
-        max_val = maximum(abs.(R_o))
-        println(max_val)
-        cart_index = findall(x -> x == max_val, R_o)
+        abs_R_o = abs.(R_o)
+        cart_index = argmax(abs_R_o)
         println(cart_index)
-        i = cart_index[1][1]
-        j = cart_index[1][2]
+        i = cart_index[1]
+        j = cart_index[2]
         push!(I, i)
         push!(J, j)
-        delt = max_val 
+        delt = R_o[i,j]
         u_k = R_o[:, j]
         v_k = transpose(R_o[i, :])./ delt
         R_o = R_o - (u_k * v_k)
