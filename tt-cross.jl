@@ -104,6 +104,8 @@ function maxvol_square(inmatrix, tolerance, r, ACA:: Bool)
     end
 end
 
+
+
 function im_ACA(inmatrix, tolerance)
     #set R_0 = R. I = empty set, J = empty set 
     R_o = deepcopy(inmatrix)
@@ -111,24 +113,24 @@ function im_ACA(inmatrix, tolerance)
     I = []
     J = []
     in_fro = norm(inmatrix)
+    println(in_fro)
     condition = true
     while condition == true
         max_val = maximum(abs.(R_o))
+        println(max_val)
         cart_index = findall(x -> x == max_val, R_o)
         println(cart_index)
         i = cart_index[1][1]
-        m = cart_index[1][2]
+        j = cart_index[1][2]
         push!(I, i)
-        push!(J, m)
-
+        push!(J, j)
         delt = max_val 
-        u_k = R_o[:, m]
-        u_k = reshape(u_k, dimensions[1] , 1)
-        v_k = R_o[i, :]' / delt
-        R_o = R_o - (u_k * v_k')
-
-        if norm(R_o, "fro") <= tolerance * in_fro
-            break
+        u_k = R_o[:, j]
+        v_k = transpose(R_o[i, :])./ delt
+        R_o = R_o - (u_k * v_k)
+        println(norm(R_o))
+        if norm(R_o) <= tolerance * in_fro
+            condition = false
         end
     end
     return I, J
