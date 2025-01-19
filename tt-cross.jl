@@ -106,19 +106,17 @@ end
 
 
 
-function im_ACA(inmatrix, tolerance)
+function im_ACA(inmatrix, tolerance, sort = false)
     #set R_0 = R. I = empty set, J = empty set 
     R_o = deepcopy(inmatrix)
     dimensions = size(R_o)
     I = []
     J = []
     in_fro = norm(inmatrix)
-    println(in_fro)
     condition = true
     while condition == true
         abs_R_o = abs.(R_o)
         cart_index = argmax(abs_R_o)
-        println(cart_index)
         i = cart_index[1]
         j = cart_index[2]
         push!(I, i)
@@ -127,13 +125,51 @@ function im_ACA(inmatrix, tolerance)
         u_k = R_o[:, j]
         v_k = transpose(R_o[i, :])./ delt
         R_o = R_o - (u_k * v_k)
-        println(norm(R_o))
         if norm(R_o) <= tolerance * in_fro
             condition = false
         end
     end
-    return I, J
+    if sort
+        return sort(I), sort(J)
+    else
+        return I, J
+    end
 end
 
 
+function TT_Cross_ACA(inmatrix, tolerance)
+    tt_storage = []
+    d = ndims(inmatrix)
+    dims = size(inmatrix)
+    println(dims)
+    W = deepcopy(inmatrix)
+    for i in 1:d-1
+        #begin reshaping the tensor 
+        remaining_index = Int(prod(size(W)) / dims[i])
 
+        folding_matrix = reshape(W, dims[i], remaining_index)
+        I, J = im_ACA(folding_matrix, tolerance)
+        println(I)
+        println(J)
+
+        C = folding_matrix[:, J]
+        R = folding_matrix[I, :]
+        A = folding_matrix[I,J]
+
+        core = C * inv(A)
+        dims_core = size(core)
+        println(dims_core)
+        if i == 1
+            core = reshape(core, 1, dims[i], dims_core[2])
+        else
+            previous_core = tt_storage[i - 1]
+            core = reshape(core, size(previous_core)[3], dims[i], dims_core[2])
+        end
+        push!(tt_storage, core)
+        W = R        
+    end
+    previous_core = tt_storage[i - 1]
+    final_core = reshape(W, size(previous_core)[end], dims[end], 1)
+    push!(tt_storage, W)
+    return tt_storage
+end
