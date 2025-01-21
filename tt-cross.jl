@@ -22,21 +22,32 @@ using Random
 function random_sub_matrix(inmatrix, r)
     """
     Recursive function that will return a submatrix of r by r. 
-    """
-    dim_matrix = size(inmatrix)
+
+    Arguements:
+        inmatrix: Matrix to be broken down 
+        r: size of submatrix
     
+    Returns:
+        sub_matrix: Actual sub_matrix
+        column_index: list of indices of the column 
+        row_index: list of the indices of the row
+    """
+    #Grabbing the dimensions of the matrix
+    dim_matrix = size(inmatrix)
+
+    #grabbing random indices to create the submatrix
     column_index = shuffle(1:dim_matrix[2])[1:r]
     row_index = shuffle(1:dim_matrix[1])[1:r]
-    # println(column_index)
-    # println(row_index)
     sub_matrix = copy(inmatrix[row_index, column_index])
 
+    #checking if the matrix is invertible 
     if det(sub_matrix) == 0
         return random_sub_matrix(inmatrix, r)
     else
         return sub_matrix, column_index, row_index
     end
 end
+
 
 
 function maxvol_square(inmatrix, tolerance, r, ACA:: Bool)
@@ -49,7 +60,10 @@ function maxvol_square(inmatrix, tolerance, r, ACA:: Bool)
     Args: 
         Tolerance: Error that we want 
         r: dimenison of the Submatrix
-        l = 0 
+        ACA :: Bool : Returns the indices each column and row. 
+    Returns:
+        A_O: submatrix with largest in volume
+
     """
     @assert tolerance > 0
     @assert r > 0 
@@ -107,6 +121,16 @@ end
 
 
 function im_ACA(inmatrix, tolerance, sort = false)
+    """
+    Does the cross decomposition 
+    Arguements:
+        inmatrix: matrix to be decomposed
+        tolerance: How much we consider the highest value
+        sort:: Bool: Whether we return a sorted version of the indices or not. 
+    Returns:
+        I: Row indices
+        J: Column indices 
+    """
     #set R_0 = R. I = empty set, J = empty set 
     R_o = deepcopy(inmatrix)
     dimensions = size(R_o)
@@ -138,9 +162,9 @@ end
 
 
 function TT_Cross_ACA(inmatrix, tolerance)
+    #storing the cores 
     tt_storage = []
     d = ndims(inmatrix)
-    println("number of iterations is $d")
     dims = size(inmatrix)
     W = deepcopy(inmatrix)
     for i in 1:d-1
@@ -149,18 +173,20 @@ function TT_Cross_ACA(inmatrix, tolerance)
         remaining_index = Int(prod(size(W)) / dims[i])
 
         folding_matrix = reshape(W, dims[i], remaining_index)
-        println(size(folding_matrix))
+        #doing the cross decomposition 
         I, J = im_ACA(folding_matrix, tolerance)
 
+        #constructing the matrices
         C = folding_matrix[:, J]
         R = folding_matrix[I, :]
         A = folding_matrix[I,J]
-        println("size of C is $(size(C))")
-        println("size of A is $(size(A))")
 
+        #creating and storing the cores
         core = C * inv(A)
         dims_core = size(core)
         println("the size of the core is $dims_core")
+
+        #checking if it is the 1st core
         if i == 1
             core = reshape(core, 1, dims[i], dims_core[2])
         else
@@ -172,6 +198,7 @@ function TT_Cross_ACA(inmatrix, tolerance)
         push!(tt_storage, core)
         W = R        
     end
+    #last core
     previous_core = tt_storage[i - 1]
     final_core = reshape(W, size(previous_core)[end], dims[end], 1)
     push!(tt_storage, final_core)
