@@ -26,6 +26,12 @@ function mode_k_contraction(base, added, k::Int64)
     return reshape(tensor_interest, indicies)
 end
 
+function frobenius_norm(inmatrix)
+    """
+    Frobenius Norm of a Tensor
+    """
+    return sqrt(sum(abs2, inmatrix))
+end
 
 
 function tt_contraction(tt_train::Any)

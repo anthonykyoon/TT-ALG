@@ -19,7 +19,7 @@ function random_tensor(dimension::Int)
         random tensor with aforementioned dimensions
     """
     dim_1 = 2
-    dim_2 = 4
+    dim_2 = 100
     dim_3 = rand(1:10)
     dim_4 = dimension
     return rand(dim_1, dim_2, dim_3, dim_4, 10) 
@@ -88,9 +88,9 @@ test_matrix = rand(Float64, (10, 15))
 # println(sub)
 # print(length(coord))
 
-# cross = (TT_Cross_ACA(test_tensor, 0.000000001))
-# println(frobenius_tt_1(test_tensor))
-# println(frobenius_tt_1(cross))
+cross = (TT_Cross_ACA_1(test_tensor, 0.000000001))
+println(frobenius_tt_1(cross))
+println(frobenius_norm(test_tensor))
 
 
 
@@ -112,23 +112,23 @@ test_matrix = rand(Float64, (10, 15))
 #     @test length(test_tensor_train) == length(TT_Round_1(test_tensor_train, 0.00000000000000000001))
 # end
 
-tt_train = TT_SVD_1(test_tensor*10, 0.00000000001)
-println(tt_train)
+# tt_train = TT_SVD_1(test_tensor*10, 0.00000000001)
+
 
 # tt2 = TT_Direct_Sum(tt_train, tt_train)
-# tt_simp = TT_Round_1(tt2, 0.00000001, 3)
+# tt_simp = TT_Round_1(tt2, 0.00000001)
 # tt_sub = direct_sub(tt_train, tt_simp)
 
 
 
-# d = length(tt_simp)
-# for i in 1:d
-#     println("simp")
-#     println(size(tt_simp[i]))
-#     println("og")
-#     println(size(tt_train[i]))
-#     println("\n")
-# end
+# # d = length(tt_simp)
+# # for i in 1:d
+# #     println("simp")
+# #     println(size(tt_simp[i]))
+# #     println("og")
+# #     println(size(tt_train[i]))
+# #     println("\n")
+# # end
 # println("og frob norm = $(frobenius_tt_1(tt_train))")
 # println("simp frob norm = $(frobenius_tt_1(tt_simp))")
 # println("error term norm = $(frobenius_tt_1(tt_sub))")

@@ -1,6 +1,7 @@
 using LinearAlgebra
 using Maxvol 
 using Random 
+using OffsetArrays
 
 #there are two possiblities on this, we can either: Given tensor, we can decompose INTO ACA 
 #given a ACA, we take lwo rank approximations of each node of the tensor train
@@ -161,46 +162,86 @@ function im_ACA(inmatrix, tolerance, sort = false)
 end
 
 
-function TT_Cross_ACA(inmatrix, tolerance)
-    #storing the cores 
+function TT_Cross_ACA_1(inmatrix, tolerance)
+    #storing the tensors
     tt_storage = []
     d = ndims(inmatrix)
     dims = size(inmatrix)
     W = deepcopy(inmatrix)
+    #offsetting the array for ease of access 
+    r = ones(d+1)
+    r = OffsetArray(r, 0:d)
     for i in 1:d-1
-        println("iteration i is $i")
-        #begin reshaping the tensor 
-        remaining_index = Int(prod(size(W)) / dims[i])
+        remaining_index = Int(prod(size(W)) / (r[i-1] * dims[i]))
+        folding_matrix = reshape(W, Int(r[i-1]) * Int(dims[i]), remaining_index)
 
-        folding_matrix = reshape(W, dims[i], remaining_index)
         #doing the cross decomposition 
         I, J = im_ACA(folding_matrix, tolerance)
 
-        #constructing the matrices
+        #Constructing the matrices 
         C = folding_matrix[:, J]
         R = folding_matrix[I, :]
         A = folding_matrix[I,J]
 
-        #creating and storing the cores
+        #constructing and constructing the core. 
+        r[i] = Int(size(A)[1])
         core = C * inv(A)
-        dims_core = size(core)
-        println("the size of the core is $dims_core")
-
-        #checking if it is the 1st core
-        if i == 1
-            core = reshape(core, 1, dims[i], dims_core[2])
-        else
-            println(dims[i])
-            previous_core = tt_storage[i - 1]
-            println((size(previous_core)[3]))
-            core = reshape(core, size(previous_core)[3], dims[i], Int(prod(size(core)) / ((size(previous_core)[3]) * dims[i])))
-        end
+        core = reshape(core, Int(r[i-1]), Int(dims[i]), Int(r[i]))
         push!(tt_storage, core)
-        W = R        
+        W = R
     end
-    #last core
-    previous_core = tt_storage[i - 1]
-    final_core = reshape(W, size(previous_core)[end], dims[end], 1)
-    push!(tt_storage, final_core)
+    #handling edge case
+    dim_final = size(W)
+    @assert length(dim_final) == 2
+    W = reshape(W, dim_final[1], dim_final[2], 1)
+    push!(tt_storage, W)
     return tt_storage
 end
+
+
+# function TT_Cross_ACA(inmatrix, tolerance)
+#     #storing the cores 
+#     tt_storage = []
+#     d = ndims(inmatrix)
+#     dims = size(inmatrix)
+#     W = deepcopy(inmatrix)
+#     r = ones(d+1)
+#     for i in 1:d-1
+#         println("iteration i is $i")
+#         #begin reshaping the tensor 
+#         remaining_index = Int(prod(size(W)) / dims[i])
+
+#         folding_matrix = reshape(W, dims[i], remaining_index)
+#         #doing the cross decomposition 
+#         I, J = im_ACA(folding_matrix, tolerance)
+
+#         #constructing the matrices
+#         C = folding_matrix[:, J]
+#         R = folding_matrix[I, :]
+#         A = folding_matrix[I,J]
+
+#         #creating and storing the cores
+#         core = C * inv(A)
+#         dims_core = size(core)
+#         println("the size of the core is $dims_core")
+
+#         #checking if it is the 1st core
+#         if i == 1
+#             core = reshape(core, 1, dims[i], dims_core[2])
+#         else
+#             println(dims[i])
+#             previous_core = tt_storage[i - 1]
+#             println((size(previous_core)[3]))
+
+#             #TODO fix this logic error
+#             core = reshape(core, size(previous_core)[3], dims[i], Int(prod(size(core)) / ((size(previous_core)[3]) * dims[i])))
+#         end
+#         push!(tt_storage, core)
+#         W = R        
+#     end
+#     #last core
+#     previous_core = tt_storage[i - 1]
+#     final_core = reshape(W, size(previous_core)[end], dims[end], 1)
+#     push!(tt_storage, final_core)
+#     return tt_storage
+# end
