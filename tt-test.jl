@@ -82,15 +82,17 @@ test_dimension = [3, 4, 3, 2, 4]
 test_matrix = rand(Float64, (10, 15))
 
 
+TT_SVD_1(test_tensor, 0.0000000001)
+
 # test_tensor_train = random_tensor_train(test_rank, test_dimension)
 # sub, coord = maxvol_square(test_matrix, 0.5, 6, true)
 # println(test_matrix)
 # println(sub)
 # print(length(coord))
 
-cross = (TT_Cross_ACA_1(test_tensor, 0.000000001))
-println(frobenius_tt_1(cross))
-println(frobenius_norm(test_tensor))
+# cross = (TT_Cross_ACA_1(test_tensor, 0.000000001))
+# println(frobenius_tt_1(cross))
+# println(frobenius_norm(test_tensor))
 
 
 

@@ -337,6 +337,7 @@ function TT_SVD_1(input_tensor::Any, error)
 
         tt_train[i] = reshape(U_trunc,( Int(r[i-1]), Int(n[i]), Int(r[i])))    
         W = S_trunc * (V_trunc)
+        println(W)
     end
     
     tt_train[d] = reshape(W, Int(r[d-1]), n[d], 1)
