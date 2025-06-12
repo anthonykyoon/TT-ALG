@@ -1,61 +1,47 @@
-using LinearAlgebra
-using OffsetArrays
-
-# First attempt at the algorithm in Low-rank approximation in the Frobenius norm by column and row subset selection. 
-
-
-#helper functions
-function cabs(x, y)
+function cabs(x,y)
     if abs(x) >= abs(y)
         r = y / x 
         t = abs(x) * sqrt(1 + r^2)
-    else
+    else 
         r = x / y 
         t = abs(y) * sqrt(1 + r^2)
     end
-    return t
+    return y 
 end
 
 function formrot(a,b)
-    if abs(x) >= abs(y)
-        r = x / y 
-        factor = sqtr(1 + r^2)
-        c = 1 / factor
+    if abs(a) >= abs(b) 
+        r = b / a 
+        factor = sqrt(1 + r^2)
+        a = abs(a) * factor
+        c = factor^(-1)
         s = r * c
     else
-        r = x / y 
-        factor = sqtr(1 + r^2)
-        c = 1 / factor
-        s = r * c
+        r = a / b 
+        factor = sqrt(1 + r^2)
+        b = abs(b) * factor 
+        s = factor^(-1)
+        c = r * s
     end
-    return c, s
+    return [[a,b], [c,s], [c , -s ; s, c]]
 end
 
-function applyrot(x, y, c , s)
-    #WIP 
+function applyrot(x,y,c,s,n:: Int)
+    @assert length(x) >= n && length(y) >= n
+    temp = c * x[1:n] + s * y(1:n)
+    y[1:n] = -s * x[1:n] + c * y(1:n)
+    x[1:n] = temp
+    return [x, y]
 end
 
-
-
-# Main function
-function cross_decomposition(matrix :: AbstractArray, k :: Int128)
-    m, n = size(matrix)
-    @assert k <= m 
-    I = []
-    J = []
-    B = deepcopy(matrix)
-    for i in 1:k 
-        U, S, V = svd(B)
-        min_ratio = +Inf
-        for i in 1:m 
-            for j in 1:n 
-                x = S * V[j,:]'
-                y = B[i,j]^(-1) * S * U(i,:)'
-
-
-            end
-        end
-    end
+function forchase(gamma, phi, z, n)
+    cn, sn = formrot(z[n-1], z[n])[2]
+    e = -sn * gamma[n-1]
+    gamma[n-1] = cn * gamma[n - 1]
+    phi[n-1] = sn * gamma[n]
+    gamma[n] = cn * gamma[n]
+    cn, sn = formrot(gamma[n], e)[2]
+    result_applyrot = applyrot(phi[n-1], gamma[n-1], cn, sn, 1)
 end
 
 
