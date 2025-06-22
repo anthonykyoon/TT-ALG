@@ -1,3 +1,6 @@
+using LinearAlgebra
+using Test 
+
 function householder(x::Vector{Float64})
     x_norm = norm(x)
     n = length(x)
@@ -83,6 +86,38 @@ function determinstic_cross_decomposition(A::Matrix{Float64}, k:: Int)
         end
     push!(I, i_t)
     push!(J, j_t)
+    I = sort(I)
+    J = sort(J)
     B = B - (B[:,j_t] * B[i_t, :] / B[i_t, j_t])
     end
+    I  = sort(I)
+    J = sort(J)
+    return I, J
+end
+
+function TT_Cross_cort(A, k:: Int)
+    tt_storage = []
+    d = ndims(A)
+    dims = size(A)
+    W = deepcopy(A)
+    r = ones(d + 10)
+    for i in 1:d-1
+        remaining_index = Int(prod(size(W)) / (r[i] * dims[i]))
+        folding_matrix = reshape(W, Int(r[i]) * Int(dims[i]), remaining_index)
+
+        I, J = determinstic_cross_decomposition(folding_matrix, k)
+        C = folding_matrix[:, J]
+        R = folding_matrix[I, :]
+        U = inv(folding_matrix[I, J])
+        r[i+1] = Int(size(A)[1])
+        core = C * U
+        core = reshape(core, Int(r[i]), Int(dims[i]), Int(r[i+1]))
+        push!(tt_storage, core)
+        W = R
+    end
+    dim_final = size(W)
+    @assert length(dim_final) == 2
+    W = reshape(W, dim_final[1], dim_final[2], 1)
+    push!(tt_storage, W)
+    return tt_storage
 end
