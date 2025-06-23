@@ -82,7 +82,7 @@ test_rank = [1, 3, 2, 4, 9, 1]
 test_dimension = [3, 4, 3, 2, 4]
 test_matrix = rand(Float64, (10, 15))
 
-
+println(test_tensor)
 TT_Cross_cort(test_tensor, 10)
 
 # TT_SVD_1(test_tensor, 0.0000000001)

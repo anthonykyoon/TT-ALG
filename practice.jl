@@ -10,7 +10,7 @@ function golub_kahan_bidiagonalization(A::Matrix{Float64})
     for k in 1:n
         # Left Householder
         H = Matrix{Float64}(I, m, m)
-        H_k = householder(B[k:end, k])
+        H_k = householder_1(B[k:end, k])
         H[k:end, k:end] = H_k
         B = H * B
         U = U * H
@@ -35,7 +35,7 @@ function householder_1(x)
     if x_norm == 0.0
         return Matrix(I, n, n)
     end
-
+    println(x)
     v = copy(x)
     v[1] += sign(x[1]) * x_norm
     v = v / norm(v)  # Normalize so that v^T v = 1
