@@ -3,6 +3,7 @@ using Test
 using Random
 include("tt-algos.jl")
 include("tt-cross.jl")
+include("practice.jl")
 
 
 Random.seed!(123693456785743121212256782543256786528432145145722222212890765432567897651313814203)
@@ -82,7 +83,9 @@ test_dimension = [3, 4, 3, 2, 4]
 test_matrix = rand(Float64, (10, 15))
 
 
-TT_SVD_1(test_tensor, 0.0000000001)
+TT_Cross_cort(test_tensor, 10)
+
+# TT_SVD_1(test_tensor, 0.0000000001)
 
 # test_tensor_train = random_tensor_train(test_rank, test_dimension)
 # sub, coord = maxvol_square(test_matrix, 0.5, 6, true)

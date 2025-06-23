@@ -1,7 +1,34 @@
 using LinearAlgebra
 using Test 
 
-function householder(x::Vector{Float64})
+function golub_kahan_bidiagonalization(A::Matrix{Float64})
+    m, n = size(A)
+    U = Matrix{Float64}(I, m, m)
+    V = Matrix{Float64}(I, n, n)
+    B = copy(A)
+
+    for k in 1:n
+        # Left Householder
+        H = Matrix{Float64}(I, m, m)
+        H_k = householder(B[k:end, k])
+        H[k:end, k:end] = H_k
+        B = H * B
+        U = U * H
+
+        # Right Householder
+        if k < n
+            G = Matrix{Float64}(I, n, n)
+            G_k = householder_1(B[k, k+1:end]')
+            G[k+1:end, k+1:end] = G_k
+            B = B * G
+            V = V * G
+        end
+    end
+
+    return U, B, V
+end
+
+function householder_1(x)
     x_norm = norm(x)
     n = length(x)
 
@@ -13,34 +40,8 @@ function householder(x::Vector{Float64})
     v[1] += sign(x[1]) * x_norm
     v = v / norm(v)  # Normalize so that v^T v = 1
     H = I - 2.0 * (v * v')  # Householder reflector
+    println(H)
     return H
-end
-
-function golub_kahan_bidiagonalization(A::Matrix{Float64})
-    m, n = size(A)
-    U = Matrix(I, m, m)
-    V = Matrix(I, n, n)
-    B = copy(A)
-
-    for k in 1:n
-        # Left Householder
-        H = Matrix(I, m, m)
-        H_k = householder(B[k:end, k])
-        H[k:end, k:end] = H_k
-        B = H * B
-        U = U * H
-
-        # Right Householder
-        if k < n
-            G = Matrix(I, n, n)
-            G_k = householder(B[k, k+1:end]')
-            G[k+1:end, k+1:end] = G_k
-            B = B * G
-            V = V * G
-        end
-    end
-
-    return U, B, V
 end
 
 function elementary_symmetric(λ::Vector{Float64})
@@ -62,20 +63,25 @@ function determinstic_cross_decomposition(A::Matrix{Float64}, k:: Int)
     for iteration in 1:k
         B = copy(A)
         m, n = size(A)
-        U, S, V = svd(A)
-        I = []
-        J = []
+        AVS = svd(A)
+        U = AVS.U 
+        S = AVS.S 
+        V = AVS.V
+        I = Int[]
+        J = Int[]
         minratio = Inf
         for i in 1:m 
             for j in 1:n 
                 if B[i,j] == 0
                     throw("B[i,j] is equal to 0, it's time to implemnt pivoting")
                 end
-                x = S * transpose(V[j,:])
-                y = (B[i,j])^(-1) * S * transpose(U[i,:])
-                M = S - x * transpose(y)
+                x = Diagonal(S) * (V[j,:])
+                y = (B[i,j])^(-1) * Diagonal(S) * (U[i,:])
+                println(size(x))
+                println(size(y))
+                M = Diagonal(S) - x * transpose(y)
                 bidiag_matrix = golub_kahan_bidiagonalization(M)
-                S = svd(bidiag_matrix)
+                S = svdvals(bidiag_matrix)
                 coefficients = elementary_symmetric(S)
                 r = coefficients[m - k + iteration - 1] / coefficients[m - k + iteration]
                 if r < minratio
@@ -84,11 +90,11 @@ function determinstic_cross_decomposition(A::Matrix{Float64}, k:: Int)
                 end
             end
         end
-    push!(I, i_t)
-    push!(J, j_t)
-    I = sort(I)
-    J = sort(J)
-    B = B - (B[:,j_t] * B[i_t, :] / B[i_t, j_t])
+        push!(I, i_t)
+        push!(J, j_t)
+        I = sort(I)
+        J = sort(J)
+        B = B - (B[:,j_t] * B[i_t, :] / B[i_t, j_t])
     end
     I  = sort(I)
     J = sort(J)
