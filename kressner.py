@@ -4,6 +4,9 @@ import copy
 
 def summation_algorithm(A) -> float:
     A = np.asarray(A)
+    print("summ")
+    print(A.shape)
+    print(A)
     if A.shape[0] != A.shape[1]:
         raise ValueError("A must be square")
 
@@ -25,85 +28,90 @@ def summation_algorithm(A) -> float:
     coeffs.extend(c_list)
     return np.array(coeffs, dtype=A.dtype)
 
-def build_bidiagonal(alpha: np.ndarray, beta: np.ndarray) -> np.ndarray:
+
+def build_bidiagonal(alpha, beta):
     """
     Build the (k+1) x k bidiagonal B for Golub–Kahan:
         A V_k = U_{k+1} B
 
-    B has:
-      - main diagonal = alpha[0:k]
-      - subdiagonal   = beta[1:k+1]
+    diag(B)        = alpha[0:k]
+    subdiag(B)     = beta[1:k+1]  (i.e., B[i, i-1] for i=1..k)
     """
     alpha = np.asarray(alpha)
-    beta = np.asarray(beta)
+    beta  = np.asarray(beta)
+
+    if alpha.ndim != 1 or beta.ndim != 1:
+        raise ValueError("alpha and beta must be 1D arrays.")
+
     k = alpha.shape[0]
     if beta.shape[0] != k + 1:
         raise ValueError(f"beta must have length k+1; got {beta.shape[0]} vs k={k}")
 
     B = np.zeros((k + 1, k), dtype=np.result_type(alpha, beta))
-    np.fill_diagonal(B, alpha)           # main diagonal
-    B[1:, :-1] += np.diag(beta[1:])      # subdiagonal (rows 1..k, cols 0..k-1)
+
+    # main diagonal
+    B[np.arange(k), np.arange(k)] = alpha
+
+    # subdiagonal: positions (i, i-1) for i=1..k
+    if k > 0:
+        B[np.arange(1, k + 1), np.arange(k)] = beta[1:]
+
     return B
 
-def golab_kahn(A, k : int, tolerance : float, u0 = None, reorth = True, return_UV = False):
-    A = np.asarray(A)
+def golub_kahan_bidiagonal_reduction(A: np.ndarray):
+    """
+    Perform full Golub–Kahan bidiagonalization:
+        A = U @ B @ V.T
+    where U and V are orthogonal, and B is bidiagonal.
+
+    Parameters
+    ----------
+    A : (m, n) ndarray
+
+    Returns
+    -------
+    U : (m, m) ndarray
+    B : (m, n) ndarray  (bidiagonal)
+    V : (n, n) ndarray
+    """
+    A = np.array(A, dtype=float, copy=True)
     m, n = A.shape
-    rng = np.random.default_rng(2)
+    U = np.eye(m)
+    V = np.eye(n)
 
-    if u0 is None:
-        u = rng.standard_normal(m)
-    else:
-        u = np.asarray(u0, dtype = A.dtype)
+    for i in range(min(m, n)):
+        # ---- Left Householder: eliminate below-diagonal entries in column i ----
+        x = A[i:, i]
+        normx = np.linalg.norm(x)
+        if normx == 0:
+            continue
+        # sign trick for stability
+        sign = 1.0 if x[0] >= 0 else -1.0
+        u = x.copy()
+        u[0] += sign * normx
+        u /= np.linalg.norm(u)
 
-    beta_prev = norm(u)
-    if beta_prev < tolerance:
-        raise ValueError("Starting vector has near-zero norm")
+        # Apply to A (from the left)
+        A[i:, :] -= 2.0 * np.outer(u, u @ A[i:, :])
+        # Accumulate into U
+        U[:, i:] -= 2.0 * np.outer(U[:, i:] @ u, u)
 
-    u /= beta_prev
+        if i < n - 1:
+            # ---- Right Householder: eliminate off-diagonal entries in row i ----
+            x = A[i, i+1:]
+            normx = np.linalg.norm(x)
+            if normx != 0:
+                sign = 1.0 if x[0] >= 0 else -1.0
+                v = x.copy()
+                v[0] += sign * normx
+                v /= np.linalg.norm(v)
 
-    U = np.zeros((m, k + 1), dtype=A.dtype)
-    V = np.zeros((n, k ), dtype=A.dtype)
-    alpha = np.zeros(k, dtype=A.dtype)
-    beta = np.zeros(k + 1, dtype=A.dtype)
-    beta[0] = 0.0
-    U[:,0] = u
+                # Apply to A (from the right)
+                A[:, i+1:] -= 2.0 * (A[:, i+1:] @ v)[:, None] * v[None, :]
+                # Accumulate into V
+                V[:, i+1:] -= 2.0 * np.outer(V[:, i+1:] @ v, v)
 
-    def mgs_reorth(x, Q):
-        for j in range(Q.shape[1]):
-            h = np.dot(Q[:,j].conj(), x)
-            x -= h * Q[:,j]
-        return x
-
-    for i in range(k):
-        r = A.T @ U[:, i]
-        if i > 0:
-            r -= mgs_reorth(r, V[:, i-1])
-        if reorth and i > 0:
-            r = mgs_reorth(r, V[:, :i])
-        a = norm(r)
-        alpha[i] = a
-        if a < tolerance:
-            V[:,i:] = 0
-            beta[i+1] = 0
-            alpha[i:] = 0
-            break
-
-        p = A @ V[:,i] - alpha[i] * U[:,i]
-        if reorth:
-            p = mgs_reorth(p, U[:, :i+1])
-        b = norm(p)
-        beta[i+1] = b
-        if b < tolerance:
-            U[:, i+1:] = 0
-            beta[i+2:] = 0
-            alpha[i+1:] = 0
-            break
-        U[:, i+1] = p / b
-
-    if return_UV:
-        return U, V, alpha, beta
-    else:
-        return alpha, beta
+    return U, A, V
 
 
 def kressner_algo(A, tolerance, k: int):
@@ -120,13 +128,12 @@ def kressner_algo(A, tolerance, k: int):
         min_rato = np.inf
         for i in range(1, m):
             for j in range(1,n):
-                x = Sigma_full @ V[j,:].T
+                x = Sigma_full @ V[j,:]
                 if B[i,j] < tolerance:
                     break
                 y = (1 / B[i,j]) * Sigma_full @ U[i,:].T
                 matrix_to_be_transfromed = Sigma_full - x @ y.T
-                alpha, beta = golab_kahn(matrix_to_be_transfromed, k = min(m,n), tolerance=tolerance)
-                C = build_bidiagonal(alpha, beta)
+                _, C, _ = golub_kahan_bidiagonal_reduction(matrix_to_be_transfromed)
                 singular_values = summation_algorithm(C)
                 if singular_values[m-k+t] < tolerance:
                     break
