@@ -110,7 +110,6 @@ def golub_kahan_bidiagonal_reduction(A: np.ndarray):
                 A[:, i+1:] -= 2.0 * (A[:, i+1:] @ v)[:, None] * v[None, :]
                 # Accumulate into V
                 V[:, i+1:] -= 2.0 * np.outer(V[:, i+1:] @ v, v)
-
     return U, A, V
 
 
@@ -119,20 +118,26 @@ def kressner_algo(A, tolerance, k: int):
     J = []
     B = copy.deepcopy((np.asarray(A)))
     m, n = B.shape
+    if m > n or k > m:
+        raise ValueError
     for t in range(0, k):
         i_t = 0
         j_t = 0
         U, s, V = np.linalg.svd(B, compute_uv=True, full_matrices=False)
-        Sigma_full = np.zeros((m, n))
-        np.fill_diagonal(Sigma_full, s)
+        rank = len(s)
+        Sigma_full = np.diag(s)
         min_rato = np.inf
         for i in range(1, m):
             for j in range(1,n):
+                print(f"rank is {rank}")
+                print(Sigma_full)
+                print(V)
                 x = Sigma_full @ V[j,:]
                 if B[i,j] < tolerance:
                     break
-                y = (1 / B[i,j]) * Sigma_full @ U[i,:].T
-                matrix_to_be_transfromed = Sigma_full - x @ y.T
+                print(U[i, :].reshape(-1, 1))
+                y = (1 / B[i, j]) * (Sigma_full @ U[i, :].reshape(-1, 1))
+                matrix_to_be_transfromed = Sigma_full - np.outer(x,y)
                 _, C, _ = golub_kahan_bidiagonal_reduction(matrix_to_be_transfromed)
                 singular_values = summation_algorithm(C)
                 if singular_values[m-k+t] < tolerance:

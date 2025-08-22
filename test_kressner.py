@@ -18,8 +18,8 @@ def test_square_matrix_small():
     assert error < 1e-8
 
 def test_rectangular_matrix():
-    A = np.array([[1., 2., 3.],
-                  [4., 5., 6.]])
+    A = np.array([[1., 2., 10.],
+                  [4., 5., 8.]])
     I, J = kressner_algo(A, tolerance=1e-8, k=2)
     assert len(I) == 2
     assert len(J) == 2
