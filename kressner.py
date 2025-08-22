@@ -123,19 +123,19 @@ def kressner_algo(A, tolerance, k: int):
     for t in range(0, k):
         i_t = 0
         j_t = 0
-        U, s, V = np.linalg.svd(B, compute_uv=True, full_matrices=False)
+# Thin (economy) SVD
+        U, s, V = np.linalg.svd(B, full_matrices=False)
         rank = len(s)
+
+        # build compact Sigma (rank x rank)
         Sigma_full = np.diag(s)
-        min_rato = np.inf
+
+        min_ratio = np.inf
         for i in range(1, m):
             for j in range(1,n):
-                print(f"rank is {rank}")
-                print(Sigma_full)
-                print(V)
-                x = Sigma_full @ V[j,:]
+                x = Sigma_full @ V[:,j]
                 if B[i,j] < tolerance:
                     break
-                print(U[i, :].reshape(-1, 1))
                 y = (1 / B[i, j]) * (Sigma_full @ U[i, :].reshape(-1, 1))
                 matrix_to_be_transfromed = Sigma_full - np.outer(x,y)
                 _, C, _ = golub_kahan_bidiagonal_reduction(matrix_to_be_transfromed)
@@ -143,7 +143,7 @@ def kressner_algo(A, tolerance, k: int):
                 if singular_values[m-k+t] < tolerance:
                     break
                 r = singular_values[m-k+t-1] / singular_values[m-k+t]
-                if r < min_rato:
+                if r < min_ratio:
                     i_t = i
                     j_t = j
         I.append(i_t)
