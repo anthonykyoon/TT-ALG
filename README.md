@@ -8,4 +8,6 @@ Basic structure of the files
 - tt-cross
   - Contains the ACA, Max-vol, and TT-Cross. **tt-cross doesn't work**
 - tt-test
-  - Ghetto testing file. It's not elegant but it works :). 
+  - Ghetto testing file. It's not elegant but it works :)
+- Kressner Cross Algorithm
+   - Theres some Golab Kahn, Summation Algo, and some cool things. Did this in NumPy for practice. 
