@@ -93,7 +93,6 @@ def golub_kahan_bidiagonal_reduction(A: np.ndarray):
 
         # Apply to A (from the left)
         A[i:, :] -= 2.0 * np.outer(u, u @ A[i:, :])
-        # Accumulate into U
         U[:, i:] -= 2.0 * np.outer(U[:, i:] @ u, u)
 
         if i < n - 1:
@@ -106,9 +105,7 @@ def golub_kahan_bidiagonal_reduction(A: np.ndarray):
                 v[0] += sign * normx
                 v /= np.linalg.norm(v)
 
-                # Apply to A (from the right)
                 A[:, i+1:] -= 2.0 * (A[:, i+1:] @ v)[:, None] * v[None, :]
-                # Accumulate into V
                 V[:, i+1:] -= 2.0 * np.outer(V[:, i+1:] @ v, v)
     return U, A, V
 
@@ -123,7 +120,7 @@ def kressner_algo(A, tolerance, k: int):
     for t in range(0, k):
         i_t = 0
         j_t = 0
-# Thin (economy) SVD
+
         U, s, V = np.linalg.svd(B, full_matrices=False)
         rank = len(s)
 
