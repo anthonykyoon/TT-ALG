@@ -1,10 +1,11 @@
 # High-dimensional failure cases: DMRG vs bordered TT-GMRES
 
-Record of where the two Fokker–Planck stationary-state solvers break down as the
-dimension `d` (and hence `n^d`) is cranked up. Both solvers are **correct and
+Record of where the Fokker–Planck stationary-state solvers break down as the
+dimension `d` (and hence `n^d`) is cranked up. The solvers are **correct and
 accurate at small `d`** (see `DMRG.py` and `tt_gmres_fokker_planck.py`, which
 match the dense null vector to ~1e-4). The cases below are the regimes where
-they *fail*, kept for reference.
+they *fail*, kept for reference. Three solvers appear: DMRG (`LᵀL`), bordered
+TT-GMRES (`L + 𝟙𝟙ᵀ`), and border-free inverse iteration (shift-invert on `L`).
 
 ## Test problem
 
@@ -95,23 +96,85 @@ The decisive failure: for `c ≥ 1e2` GMRES **converges on the bordered system**
 
 ---
 
+## Failure 3 — border-free inverse iteration (does the border do real work?)
+
+Question: must we perturb `L` by the rank-1 `𝟙𝟙ᵀ` at all?  No — `L p = 0` can be
+solved by **inverse iteration on `L` itself**, `p_{k+1} = normalize((L − σI)⁻¹ p_k)`,
+where the shift `−σ` is just a diagonal term (it keeps `L`'s `[1,2,2,1]`/`[1,4,4,1]`
+MPO structure; no dense rank-1 outer product).  Each inner solve uses the same
+relaxed TT-GMRES.  Measured at `d = 3` (`fp_stationary_inverse_iteration`):
+
+**Coupled-OU**, eigenvalues `−0.016, −1.95, …` (spectral gap ≈ 120×):
+
+| σ | `‖Lp‖/‖p‖` | `⟨·, dense-null⟩` |
+|------|-----------|-------------------|
+| 0.0  | 9.8e-1 | 0.960 |
+| −0.1 | **1.8e-2** | **0.99995** |
+| −0.5 | 3.4e-2 | 0.99997 |
+
+→ recovers the null vector **with no border**, matching the bordered solve.
+
+**Separable double-well**, eigenvalues `+0.08, −0.45, −1.9, …` (gap ≈ 5×):
+
+| σ | `‖Lp‖/‖p‖` | `⟨·, dense-null⟩` |
+|--------|-----------|-------------------|
+| 0.0    | 1.3e+1 | 0.33 |
+| +0.06  | 1.7e+0 | 0.990 |
+| +0.075 | 1.6e+1 | 0.63 |
+
+→ works only in a **narrow, fragile** σ-window; inner GMRES stays `conv=False`
+with non-monotone residuals (`31→11→19→21→1.7`).
+
+What this reveals:
+
+- **`σ = 0` fails in both cases.**  The inner solve is then on the *near-singular*
+  `L` and GMRES stalls.  So the border was **not** mere bookkeeping: for an
+  *iterative* inner solver it lifts the singular direction so GMRES can converge.
+  Inverse iteration's textbook robustness (Wilkinson: the ill-conditioned solve's
+  error lands along the wanted eigenvector) assumes a **direct** solve; GMRES does
+  not inherit it.
+- **A shift is the border-free substitute, robust only when the gap is large.**
+  OU's near-zero eigenvalue is isolated, so a shift big enough to condition the
+  solve (σ = −0.5) still targets the null.  The double-well's gap is ~5×, so no σ
+  both conditions the inner solve *and* targets the null — the classic shift-invert
+  tension (push σ→λ₀ for targeting ⇒ re-singularize the solve).
+- **The shift sign must match λ₀.**  FD truncation pushes the near-zero eigenvalue
+  to either side: OU's is `−0.016` (needs σ<0), the double-well's is `+0.08`
+  (needs σ>0).  Wrong sign ⇒ targets the second eigenvalue instead.
+
+---
+
 ## Diagnosis
 
-The bordered one-shot is a single inverse-iteration step with a **fixed** probe
-vector `𝟙`. Its solution is `p ∝ v₀ / (𝟙ᵀv₀)`. As `d` grows, the null vector
-`v₀ = ⊗ᵢ ρᵢ` (a product of localized 1-D densities) becomes nearly orthogonal to
-the uniform probe: `𝟙ᵀv₀ = Πᵢ(𝟙ₙᵀρᵢ)` drifts away from the scale that keeps the
-border balanced against `L`, and the recovered direction is dominated by the
-other (non-null) modes that the single step fails to suppress. No global rescale
-of the border fixes a per-mode alignment problem.
+Two separate things break the high-`d` bordered one-shot, and an earlier version
+of this note mis-stated the first one:
 
-**What would be needed (not yet implemented):**
-- Iterate the solve (true inverse iteration: `L p_{k+1} = p_k`, normalize) so the
-  null mode is amplified over several steps instead of one.
-- A shift-and-invert `(L − σI)` formulation with a small `σ`, well-scaled `L`.
-- Preconditioning for the stiff `1/h²` spectrum.
-- For DMRG: avoid the `LᵀL` squaring (e.g. a non-symmetric/2-site variant) to cut
-  cost and stop the accuracy decay.
+1. **Not** a "loss of alignment" of `𝟙` with the null vector.  For an exactly
+   singular `L`, Sherman–Morrison gives `(L + 𝟙𝟙ᵀ)⁻¹𝟙 ∝ L⁻¹𝟙 ∝ v₀` — the
+   overlap `𝟙ᵀv₀` only sets the *scale* `γ`, **not the direction**.  Any probe
+   with `𝟙ᵀv₀ ≠ 0` recovers the exact null direction.  So shrinking `𝟙ᵀv₀` is not
+   the failure mechanism.
+2. The real causes:
+   - **Border magnitude.**  Raw `𝟙𝟙ᵀ` has operator norm `n^d`, which swamps `L`
+     (norm ~tens) and destroys the conditioning of the *iterative* GMRES solve on
+     `M` (Failure 2a).  Rescaling alone can't fix it (2b/2c): a too-small border
+     leaves the system near-singular, a too-large one converges to a vector with
+     `‖Lp‖/‖p‖ ≈ 57` — GMRES converges on `M` yet the answer isn't the null vector.
+   - **Near-singularity, not singularity.**  The discrete `L` has a *cluster* of
+     small eigenvalues (`λ_i` are sums of per-axis eigenvalues), so `M⁻¹𝟙 ∝ L⁻¹𝟙`
+     mixes several small-eigenvalue modes, not the null mode alone.  A single shot
+     with a fixed probe doesn't separate them; this is the same near-singular inner
+     solve that stalls the border-free `σ = 0` run in Failure 3.
+
+**What would be needed (partly explored in Failure 3):**
+- Iterate the solve (inverse iteration, above) so the null mode is amplified over
+  several steps — works when the spectral gap is comfortable (OU), fragile when it
+  is not (double-well).
+- A shift-and-invert `(L − σI)` with a correctly-signed, gap-appropriate `σ`.
+- **Precondition the inner solve** (or deflate the known left-null `𝟙`) so GMRES
+  converges near σ ≈ λ₀ — the missing piece for the small-gap case.
+- For DMRG: avoid the `LᵀL` squaring (a non-symmetric/2-site variant) to cut cost
+  and stop the accuracy decay.
 
 ## Reproduction
 
@@ -119,3 +182,5 @@ of the border fixes a per-mode alignment problem.
   `python3 bench_highd.py 8 16` (DMRG is slow; expect ~9 min at `d=8`).
 - Small-`d` *working* baselines: `python3 tt_gmres_fokker_planck.py`
   (overlaps 0.9999 / 0.9998 at `d = 3`).
+- Border-free inverse iteration: `fp_stationary_inverse_iteration` in
+  `tt_gmres_fokker_planck.py` (Failure 3 tables).

@@ -1,2 +1,30 @@
-# tt-test.jl
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Julia
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+/Manifest.toml
+
+# Generated output (plots, large notes)
+*.png
 Notes_DMRG_sketching.pdf
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

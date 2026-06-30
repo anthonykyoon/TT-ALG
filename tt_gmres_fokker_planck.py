@@ -104,6 +104,69 @@ def build_operators(terms, d, n, round_eps=1e-12):
     return mpo_dmrg_to_gmres(L), mpo_dmrg_to_gmres(M)
 
 
+# =============================================================================
+#  Border-FREE solve:  inverse / shift-invert iteration on L directly
+# =============================================================================
+#  Instead of perturbing L by the rank-1 term 1 1^T, solve the *near-singular*
+#  system  (L - sigma I) x = p_k  repeatedly and normalize.  L is left intact
+#  (its 1,2,2,1 MPO structure is untouched -- a shift only adds -sigma to the
+#  diagonal, still a sum-of-single-axis term), and iterating amplifies the
+#  near-null eigenvector over several steps instead of betting on one probe.
+def shift_operator(terms, d, n, sigma, round_eps=1e-12):
+    """L - sigma I  as an MPO in the tt_gmres layout (shift = single -sigma*I term)."""
+    shifted = terms + [{0: -sigma * np.eye(n)}]      # (-sigma I) (x) I (x) ... = -sigma I_full
+    return mpo_dmrg_to_gmres(mpo_round(mpo_from_terms(shifted, d), eps=round_eps))
+
+
+def fp_stationary_inverse_iteration(terms, d, n, sigma=0.0, n_iter=4,
+                                    max_rank=12, gmres_m=30, max_restarts=8,
+                                    tol=1e-8, verbose=True):
+    """
+    Stationary FP density via inverse iteration on L -- NO rank-1 border.
+
+        p_{k+1} = normalize( (L - sigma I)^{-1} p_k ),   sigma ~ 0,
+
+    each inner solve done with relaxed TT-GMRES.  With sigma = 0 this is plain
+    inverse iteration on the near-singular FD operator: the 1/|lambda_0| factor
+    makes the near-null eigenvector dominate, so even one step lands close and a
+    few steps lock on.  Returns (p, resid = ||L p||/||p||, history).
+    """
+    L_g = mpo_dmrg_to_gmres(mpo_round(mpo_from_terms(terms, d), eps=1e-12))
+    A_g = shift_operator(terms, d, n, sigma)         # L - sigma I
+
+    p = ones_tt(d, n)                                # start from the uniform probe
+    p = tt_round(p, eps=tol, max_rank=max_rank)
+    history = []
+
+    for k in range(n_iter):
+        sink = io.StringIO()
+        with redirect_stdout(sink):
+            x, info = relaxed_tt_gmres(
+                b=p, x0=zero_tt(d, n), A=A_g,
+                tol=tol, max_rank=max_rank, m=gmres_m, max_restarts=max_restarts,
+            )
+        # normalize the new iterate
+        nx = tt_frobenius(x)
+        x = tt_scale_vec(x, 1.0 / nx)
+        p = tt_round(x, eps=tol, max_rank=max_rank)
+
+        Lp = tt_round(mpo_mps_mult(L_g, p), eps=tol, max_rank=max_rank)
+        resid = tt_frobenius(Lp) / tt_frobenius(p)
+        history.append(resid)
+        if verbose:
+            print(f"  iter {k+1:2d}:  GMRES conv={info['converged']!s:5s}  "
+                  f"||L p||/||p|| = {resid:.3e}  ranks={[c.shape[0] for c in p] + [1]}")
+
+    return p, history[-1], history
+
+
+def tt_scale_vec(p, alpha):
+    """Scale a TT-vector by alpha (fold into the first core)."""
+    out = [c.copy() for c in p]
+    out[0] = out[0] * alpha
+    return out
+
+
 def fp_stationary_gmres(terms, d, n, max_rank=12, gmres_m=30, max_restarts=8,
                         tol=1e-8, verbose=True):
     """
