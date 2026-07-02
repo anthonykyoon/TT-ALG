@@ -20,7 +20,6 @@ env/
 /Manifest.toml
 
 # Generated output (plots, large notes)
-*.png
 Notes_DMRG_sketching.pdf
 
 # OS / editor
