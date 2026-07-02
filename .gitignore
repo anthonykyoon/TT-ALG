@@ -21,6 +21,9 @@ env/
 
 # Generated output (plots, large notes)
 Notes_DMRG_sketching.pdf
+high_d_failure_cases.md 
+
+
 
 # OS / editor
 .DS_Store
