@@ -1,0 +1,783 @@
+\documentclass[12pt]{article}
+\usepackage{graphicx}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref} 
+\usepackage{amsmath}
+\usepackage{gensymb}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{amsthm}
+\usepackage{braket}
+\usepackage{float}
+
+\title{Glauber Dynamics via Tensor Trains}
+\author{Anthony Yoon}
+\date{May 2026}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\st}{\text{s.t}}
+\newcommand{\bigO}[1]{\mathcal{O}\left(#1\right)}
+\newcommand{\fP}{\mathbb{P}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\text{Var}}
+\newcommand{\Cov}{\text{Cov}}
+\newcommand{\brho}{\boldsymbol{\rho}}
+
+% Define environments
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+
+% Definition style (no italics)
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+
+% Remark style (no italics, no bold label)
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{note}[theorem]{Note}
+
+% Pre conditioning? 
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage 
+\section{Formulation of Glauber Dynamics into TT language }\label{sec:glauber}
+Given the 1D Ising model, where we assume that there is a lattice of electrons, we can use the results found by Roy J Glauber to model it. First, the key results from Glauber's 'Time-Dependent Statistics of the Ising Model" are summarized, and then we demonstrate how to translate this to tensor train language.
+\subsection{A summary of the Glauber Dynamics}\label{sec:glauber-summary}
+Assume we have $N$ fixed particles in a lattice, whose configurations can be reshaped into a ring. We denote the position of the $N$ particles as $\boldsymbol{\sigma}(t) = \{\sigma_1(t), \sigma_2(t), \dots, \sigma_N(t)\}$, where each position is a stochastic function of time. For each of these positions, we allow each $\sigma_i$ to take values from $\pm 1$. We assume that these spin transitions happen because of interaction of spins with an external agent, such as an external heat source, and the spins of all $N$ electrons on each other. Thus, we can see that the spin functions form a Markov process of $N$ discrete, continuous-time random variables.
+
+To provide some intuition for $N$ spin chains, consider a singular electron spinning. We make the assumption that there exists no magnetic field within the system, which means that there is no bias towards any of the states. Then, let $\alpha /2 $ denote the rate per unit time at which the particle makes a transition in between each state. We can see that the spin takes on a value $\sigma$ at time $t$ can be expressed as 
+\[
+\frac{d}{dt} p(\sigma,t) = -\frac{\alpha}{2}p(\sigma, t) + \frac{\alpha}{2}p(-\sigma, t) \qquad (1)
+\]
+which preserves the law of total probability, or
+\[
+p(1,t) + p(-1,t) = 1
+\]
+If we let $q(t) = p(1,t) - p(-1,t)$, note that 
+\begin{align*}
+    q(t) &= p(1,t) - p(-1,t)\\
+    &= \sum_{\sigma = \pm 1}\sigma p(\sigma,t) \\
+    &= \E[\sigma(t)]
+\end{align*}
+It is important to note that from the above, we can express 
+\[
+p(\sigma, t) = 0.5[1 + \sigma q(t)]
+\]
+From $(1)$, we can see that 
+\begin{align*}
+\frac{d}{dt} q(t) &= \frac{d}{dt} p(1,t) - \frac{d}{dt}p(-1,t) \\
+&= \left(-\frac{\alpha}{2}p(1, t) + \frac{\alpha}{2}p(-1, t)\right)  - \left(-\frac{\alpha}{2}p(-1, t) + \frac{\alpha}{2}p(1, t)\right)\\
+&= -\alpha (p(1,t) - p(-1,t))\\
+&= -\alpha q(t)
+\end{align*}
+The solution to the above differential equation is given as $q(t) = q(0)e^{-\alpha t}$, which implies that the mean spin decays exponentially at a rate of $\alpha^{-1}$. 
+
+Now, consider the spin system of size $N$ as previously mentioned. We make the assumption that for a spin $i$, its neighbors' momentum influences the spin of the system. Note that there are $2^N$ elements in the sample space of the spin configuration. Let $w_i(\sigma_i)$ denote the probability per unit time that spin $i$ flips while the others remain momentarily fixed. We can express the derivative with respect to time of the probability function $p(\sigma_1, \sigma_2, \dots, \sigma_N, t)$ can be expressed as 
+\[
+\frac{d}{dt} p(\sigma_1, \sigma_2, \dots, \sigma_N, t) = - \left[ \sum_i w_i(\sigma_i)\right]p(\sigma_1, \sigma_2, \dots, \sigma_N, t) + \sum_i w_i(-\sigma_i) p(\sigma_1, \dots, -\sigma_i,\dots,  \sigma_N, t) 
+\]
+The above can be interpreted as the current composition of spins being destroyed by the flip of particle $i$, but also can be created from any configuration of $(\sigma_1, \dots, -\sigma_i, \dots, \sigma_N)$. The above is commonly referred to as the master equation as the solution to the above would describe the most probable outcome of the system for all time. 
+
+To correspond with the Ising model, we let 
+\[
+w_i(\sigma_i) = \frac{\alpha}{2}\left[1 - \frac{1}{2} \gamma \sigma_i (\sigma_{i-1} + \sigma_{i+1}) \right]
+\]
+which reflects the tendency for each spin to align itself to be parallel to its nearest neighbors. Note that $w_i(\sigma_i) \in \{0.5\alpha, 0.5\alpha(1 - \gamma), 0.5\alpha(1+\gamma)\}$. The value $0.5\alpha$ corresponds to the value of the transition probability in the case in which the neighboring spins are antiparallel, or $\sigma_{i-1} = - \sigma_{i+1}$. $0.5\alpha(1-\gamma)$ is the transition probability for $\sigma_i$ parallel to its neighbors. Similarly, $0.5\alpha(1+\gamma)$ refers to the transition probability for the antiparallel cases.
+
+A natural question that arises is what are the values of $\alpha$ and $\gamma$? $\alpha$ is the time scale on which all transitions take place. Interestingly, it has no parallel within the Ising model. However, the parameter $\gamma$ has a very important interpretation. It describes the tendency of spins toward alignment and hence heavily influences the equilibrium state. It is important to note that $|\gamma| < 1$ to preserve probabilities. We can find a closed form of $\gamma$. Note that the Hamiltonian of the linear Ising model is 
+\[
+H = -J \sum_i \sigma_i \sigma_{i+1}
+\]
+where $J$ is the coupling constant. At a temperature $T$, the probability that the $j$th spin will take on the value of $\sigma_j$, and not its opposed spin, is proportional to the Boltzmann factor $\exp(H/kT)$. Therefore,
+\[
+\frac{p_i(-\sigma_i)}{p_i(\sigma_i)} = \frac{\exp \left[ -(J/kT)\sigma_i(\sigma_{i-1} + \sigma_{i+1})\right]}{\exp \left[ (J/kT)\sigma_i(\sigma_{i-1} + \sigma_{i+1})\right]}
+\]
+If only a singular element switches spins, then we can express 
+\[
+\frac{p_i(-\sigma_i)}{p_i(\sigma_i)} = \frac{w_i(-\sigma_i)}{w_i(\sigma_i)} = \frac{1 - 0.5\gamma \sigma_i (\sigma_{i-1} + \sigma_{i+1})}{1 + 0.5\gamma \sigma_i (\sigma_{i-1} + \sigma_{i+1})}
+\]
+where $w_i$ is the probabilities as discussed prior. 
+Note that 
+\begin{align*}
+    \exp\left[\pm (J/kT)\sigma_i (\sigma_{i-1} + \sigma_{i+1}) \right] &= \cosh\left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1})\right) \pm \sigma_i \sinh \left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1})\right)\\
+    &= \cosh\left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1}) \right) \left( 1 \pm \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1}) \tanh \left( \frac{2J}{kT} \right) \right)
+\end{align*}
+Thus, 
+\begin{align*}
+    \frac{p_i(-\sigma_i)}{p_i(\sigma_i)} &= \frac{\cosh\left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1}) \right) \left( 1 - \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1}) \tanh \left( \frac{2J}{kT} \right) \right)}{\cosh\left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1}) \right) \left( 1 + \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1}) \tanh \left( \frac{2J}{kT} \right) \right)} \\
+    &= \frac{ 1 - \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1})  \tanh \left(\frac{2J}{kT}\right)}{ 1 + \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1})  \tanh \left(\frac{2J}{kT}\right)}
+\end{align*}
+which implies that $\gamma = \tanh \left(\frac{2J}{kT}\right)$ in Glauber dynamics. 
+
+We can also translate this into operator notation. For notational sake, let $\sigma = (\sigma_1, \sigma_2, \dots, \sigma_N)$ and let $\rho(\boldsymbol{\sigma}, t)$ denote the probability that a chain of length $N$ is in configuration $\sigma$ at time $t$. Let $\boldsymbol{\sigma}^i$ denote the configuration $\sigma$ but with the site $i$ flipped. Additionally, we let
+\[
+w_i(\sigma) = \frac{\alpha}{2} \left[1 - \frac{1}{2}\gamma \sigma_i( \sigma_{i+1} + \sigma_{i-1})\right]
+\]
+We can describe the evolution of the configuration probabilities as follows:
+\[
+\frac{\partial \rho(\sigma, t)}{\partial t} = \sum_i \left[ w_i(\sigma^i)\, \rho(\sigma^i, t) - w_i(\sigma)\, \rho(\sigma, t) \right],
+\]
+where $\sigma^i$ denotes the configuration $\sigma$ with the $i$-th spin flipped. 
+
+We can express the right-hand side as the action of a linear operator $L$. Collecting the probabilities of all $2^N$ configurations into a vector $\boldsymbol{\rho}(t) \in \mathbb{R}^{2^N}$, with components $[\boldsymbol{\rho}(t)]_\sigma = \rho(\sigma, t)$, we define $L$ by
+\[
+\big(L\boldsymbol{\rho}\big)_\sigma = \sum_i \left[ w_i(\sigma^i)\, \rho(\sigma^i, t) - w_i(\sigma)\, \rho(\sigma, t) \right],
+\]
+so that the master equation takes the compact form
+\[
+\frac{\partial \boldsymbol{\rho}(t)}{\partial t} = L\, \boldsymbol{\rho}(t).
+\]
+For brevity, we suppress the time argument henceforth, writing $\boldsymbol{\rho}$ instead of $\boldsymbol{\rho}(t)$. We can express the above in matrix format by noting
+\[
+L_{\sigma\sigma'} = \begin{cases}
+    w_i(\sigma) & \sigma = (\sigma')^i \\ 
+    - \sum_i w_i(\sigma) & \sigma = \sigma' \\
+    0 & \text{otherwise}
+\end{cases}
+\]
+where the matrix is indexed row-wise by the configuration $\sigma$ and column-wise by $\sigma'$, where $\sigma, \sigma' \in \{\pm 1\}^N$. Concretely, we find that
+\[
+\underbrace{
+\begin{bmatrix}
+-\displaystyle\sum_i w_i(\sigma_1) & \ell_{\sigma_1 \sigma_2} & \ell_{\sigma_1 \sigma_3} & \cdots & \ell_{\sigma_1 \sigma_{2^N}} \\[10pt]
+\ell_{\sigma_2 \sigma_1} & -\displaystyle\sum_i w_i(\sigma_2) & \ell_{\sigma_2 \sigma_3} & \cdots & \ell_{\sigma_2 \sigma_{2^N}} \\[10pt]
+\ell_{\sigma_3 \sigma_1} & \ell_{\sigma_3 \sigma_2} & -\displaystyle\sum_i w_i(\sigma_3) & \cdots & \ell_{\sigma_3 \sigma_{2^N}} \\[6pt]
+\vdots & \vdots & \vdots & \ddots & \vdots \\[4pt]
+\ell_{\sigma_{2^N} \sigma_1} & \ell_{\sigma_{2^N} \sigma_2} & \ell_{\sigma_{2^N} \sigma_3} & \cdots & -\displaystyle\sum_i w_i(\sigma_{2^N})
+\end{bmatrix}
+}_{L}
+\begin{bmatrix}
+\rho(\sigma_1, t) \\[8pt]
+\rho(\sigma_2, t) \\[8pt]
+\rho(\sigma_3, t) \\[6pt]
+\vdots \\[4pt]
+\rho(\sigma_{2^N}, t)
+\end{bmatrix}
+=
+\frac{\partial}{\partial t}
+\begin{bmatrix}
+\rho(\sigma_1, t) \\[8pt]
+\rho(\sigma_2, t) \\[8pt]
+\rho(\sigma_3, t) \\[6pt]
+\vdots \\[4pt]
+\rho(\sigma_{2^N}, t)
+\end{bmatrix}
+\]
+where 
+\[
+\ell_{\sigma \sigma'} =
+\begin{cases}
+w_i(\sigma') & \text{if } \sigma = (\sigma')^i \text{ for the (unique) site } i, \\[4pt]
+0 & \text{if } \sigma,\ \sigma' \text{ differ by more than one flip.}
+\end{cases}
+\]
+If we were interested in finding the equilibrium state, it suffices to solve $L \brho = 0$ under the condition that $\|\brho\|_1  = 1$. That this problem is well posed --- that a solution exists, and is unique once normalised --- is guaranteed by the following.
+
+\begin{proposition}[Existence and uniqueness of the equilibrium]\label{prop:singular}
+The generator $L$ is singular, and its null space is one-dimensional. Consequently $L\brho = 0$ has a nonzero solution, unique up to a scalar, which may be normalised to a probability distribution.
+\end{proposition}
+
+\begin{proof}
+\emph{Singularity.} By construction $L$ conserves total probability: in any column $\sigma'$ the diagonal entry is $-\sum_i w_i(\sigma')$, while the off-diagonal entries of that column are $w_i(\sigma')$, one for each of the $N$ single-flip configurations $\sigma = (\sigma')^i$. Their sum vanishes,
+\[
+\sum_{\sigma} L_{\sigma\sigma'}
+= -\sum_i w_i(\sigma') + \sum_i w_i(\sigma') = 0,
+\]
+which is precisely the statement $\mathbf{1}^\top L = \mathbf{0}^\top$, where $\mathbf{1}$ is the all-ones vector. Thus $\mathbf{1}$ is a left null vector of $L$, so $L^\top$ has a nontrivial kernel and $\det L = \det L^\top = 0$; hence $L$ is singular. In particular $L$ has a nonzero right null vector $\brho$, i.e. $L\brho = 0$ admits a nontrivial solution.
+
+\emph{Uniqueness.} Every single-flip rate is strictly positive: from Section~\ref{sec:glauber}, $w_i(\sigma') \in \{\tfrac{\alpha}{2},\, \tfrac{\alpha}{2}(1-\gamma),\, \tfrac{\alpha}{2}(1+\gamma)\}$, all positive since $\alpha > 0$ and $|\gamma| < 1$. Hence each configuration communicates with every one of its single-flip neighbours, and on the ring any two configurations are joined by a chain of single flips, so $L$ is irreducible. By the Perron--Frobenius theorem for irreducible generators the eigenvalue $0$ is simple, so $\dim\ker L = 1$ and the stationary vector is unique up to scale. The corresponding Perron eigenvector may moreover be chosen with strictly positive entries, so it can be rescaled to satisfy $\|\brho\|_1 = 1$, giving a genuine probability distribution.
+\end{proof}
+\section{Motivation of using Tensor Trains}\label{sec:tt-motivation}
+Note in the above, for $N$ very large, solving the above system of linear equations becomes very costly. To avoid this, we can use tensor train methods to solve it. Here, we can apply the tensor train GMRES method and the DMRG. Before doing so, we must elaborate on how the TT-GMRES and the DMRG algorithm can be used to solve the system of linear equations. However, the TT-GMRES method is just a higher dimensional generalization of the standard GMRES method, so it only suffices to understand how the DMRG solves a system of linear equations.
+
+\subsection{The variational template and the equilibrium problem}\label{sec:variational}
+
+To illustrate how an optimizer can solve a system of linear equations, consider the following. For a symmetric positive-definite matrix $A$ and a nonzero right-hand side $b$, the linear system $Ax = b$ admits the well-known variational characterisation through the energy functional
+\[
+f(x) = \frac{1}{2}\braket{x|A|x} - \braket{x|b}, \qquad \nabla f(x) = Ax - b,
+\]
+whose unique stationary point $\nabla f(x) = 0$ is exactly the solution of $Ax = b$. Since $A$ is positive-definite, this stationary point is the global minimiser.
+
+% This relation is the machinery that allows us to apply the DMRG to solve a linear system. 
+
+However, the equilibrium problem constructed in Section~\ref{sec:glauber} does not fit this template directly. We want a $\brho$ such that 
+\[
+L\brho = 0, \qquad \|\brho\|_1 = 1,
+\]
+which is \emph{homogeneous} ($b = 0$) and whose generator $L$ is \emph{non-symmetric} as evidenced by the structure above. The energy functional $f$ is therefore inapplicable. Its gradient is $\nabla f(x) = \tfrac{1}{2}(L + L^\top)x - b$, so a stationary point of $f$ solves the \emph{symmetrised} system $\tfrac{1}{2}(L + L^\top)x = b$ rather than $Lx = b$ --- the antisymmetric part of $L$ is invisible to $f$. Moreover the equilibrium problem is homogeneous ($b = 0$), for which $f$ is either minimised trivially at $\brho = 0$ or unbounded below, and in neither case singles out the stationary state. The correct scalar functional for a homogeneous problem is not $f$ but the Rayleigh quotient. Since
+\[
+L\brho = 0 \iff \|L\brho\|_2 = 0, \qquad \|L\brho\|_2^2 = \braket{\brho | L^\top L | \brho},
+\]
+the equilibrium state is the minimiser
+\[
+\brho = \arg\min_{\brho \neq 0} \frac{\|L\brho\|_2^2}{\|\brho\|_2^2}
+      = \arg\min_{\brho \neq 0} \frac{\braket{\brho | M | \brho}}{\braket{\brho | \brho}},
+      \qquad M := L^\top L.
+\]
+The matrix $M = L^\top L$ is symmetric positive semidefinite, so this Rayleigh quotient is bounded below by $0$, and its minimiser is the eigenvector of $M$ belonging to the smallest eigenvalue $\lambda_{\min} \geq 0$. For a true stationary state $\lambda_{\min} = 0$ and $\|L\brho\|_2 = 0$, recovering $L\brho = 0$ exactly. This is the precise sense in which the DMRG ``solves the linear system'': it minimises the quadratic Rayleigh quotient of $M$ over tensor-train vectors. Two remarks complete the reformulation.
+
+\begin{remark}[Well-posedness]
+For an irreducible generator, the Perron--Frobenius theorem guarantees that $0$ is a \emph{simple} eigenvalue of $L$, so the stationary distribution is unique up to scale. Consequently $M = L^\top L$ has a simple zero eigenvalue as well, and ``the smallest eigenpair'' is an unambiguous target for the minimisation.
+\end{remark}
+
+\begin{remark}[From the $2$-norm to the $1$-norm]\label{rem:normalisation}
+The Rayleigh quotient fixes $\brho$ only up to scale, and the DMRG returns a vector normalised in the Euclidean ($2$-norm) sense. Because the stationary vector of an irreducible generator is sign-definite (a Perron vector, with all entries of one sign), it can be rescaled to satisfy the probability normalisation $\|\brho\|_1 = 1$ without ambiguity once the sweeps have converged.
+\end{remark}
+
+\subsection{Tensor-train representation}\label{sec:tt-rep}
+
+The obstruction is purely dimensional: $\brho \in \R^{n^N}$ (with local dimension $n = 2$ for spins) and $M \in \R^{n^N \times n^N}$ have $2^N$ and $4^N$ entries respectively, which is intractable for large $N$. The tensor train breaks this exponential scaling by representing the whole vector $\brho \in \R^{n^N}$ as a chain of small three-legged cores. Let $\{\mathbf{e}_{\sigma_k}\}_{\sigma_k}$ denote the standard basis of $\R^n$ at site $k$; then
+\[
+\brho = \sum_{\sigma_1, \dots, \sigma_N}
+  \big(G_1[\sigma_1]\, G_2[\sigma_2] \cdots G_N[\sigma_N]\big)\;
+  \mathbf{e}_{\sigma_1} \otimes \mathbf{e}_{\sigma_2} \otimes \cdots \otimes \mathbf{e}_{\sigma_N}
+  \;\in\; \R^{n^N},
+\]
+where each core $G_k \in \R^{r_{k-1} \times n \times r_k}$ contributes a matrix slice $G_k[\sigma_k] \in \R^{r_{k-1} \times r_k}$ for each local state $\sigma_k$, and the boundary ranks satisfy $r_0 = r_N = 1$ so that each product $G_1[\sigma_1] \cdots G_N[\sigma_N]$ collapses to the scalar coefficient of the basis vector $\mathbf{e}_{\sigma_1} \otimes \cdots \otimes \mathbf{e}_{\sigma_N}$. Reading off a single configuration $\sigma = (\sigma_1, \dots, \sigma_N)$ recovers the componentwise form $[\brho]_\sigma = G_1[\sigma_1] \cdots G_N[\sigma_N]$. The integers $r_k$ are the \emph{TT-ranks}; the whole vector costs $O(Nnr^2)$ to store rather than $n^N$, where $r = \max_k r_k$.
+
+The operator $M$ is stored in the matching matrix-product-operator (MPO) format,
+\[
+M_{\sigma\sigma'} = W_1[\sigma_1, \sigma_1']\, W_2[\sigma_2, \sigma_2'] \cdots W_N[\sigma_N, \sigma_N'],
+\]
+with cores $W_k \in \R^{R_{k-1} \times n \times n \times R_k}$ and $R_0 = R_N = 1$. The generator $L$ assembled in Section~\ref{sec:glauber} is a sum of a handful of Kronecker-product terms and hence has a small exact MPO rank; forming $M = L^\top L$ multiplies the MPO cores and so gives an MPO whose rank is at most the \emph{square} of that of $L$. This product is highly non-minimal and is re-compressed by TT-rounding (a sweep of truncated SVDs) before the solve.
+
+\subsection{Linearity in a single core}\label{sec:core-linearity}
+
+The structural fact the DMRG exploits is that, although $\brho$ is a strongly nonlinear function of all cores jointly, it is \emph{linear in each core separately}. Fix every core except $G_k$ and collect the remaining cores into a left and a right interface,
+\[
+(X_{<k})_{(\sigma_1 \cdots \sigma_{k-1}),\, a}
+  = \big(G_1[\sigma_1] \cdots G_{k-1}[\sigma_{k-1}]\big)_a
+  \in \R^{n^{k-1} \times r_{k-1}},
+\]
+\[
+(X_{>k})_{a,\, (\sigma_{k+1} \cdots \sigma_N)}
+  = \big(G_{k+1}[\sigma_{k+1}] \cdots G_N[\sigma_N]\big)_a
+  \in \R^{r_k \times n^{N-k}}.
+\]
+Then $\brho = X_{<k}\, G_k\, X_{>k}$, contracting the two bond legs of $G_k$ against the interfaces. Vectorising the free core, this is a linear map
+\[
+\brho = \Phi_{\neq k}\, \mathrm{vec}(G_k),
+\qquad
+\Phi_{\neq k} = X_{<k} \otimes I_n \otimes X_{>k}^\top
+\in \R^{n^N \times r_{k-1} n r_k},
+\]
+where the \emph{interface frame} $\Phi_{\neq k}$ is built entirely from the fixed cores, and $\mathrm{vec}(G_k) \in \R^{r_{k-1} n r_k}$ is ordered as (left bond, physical, right bond).
+
+\subsection{Orthogonalisation and the local eigenproblem}\label{sec:local-eig}
+
+The frame $\Phi_{\neq k}$ can be made to have orthonormal columns by placing the train in \emph{mixed-canonical form} centred at site $k$. A core is left-orthonormal if
+\[
+\sum_{\sigma} G_k[\sigma]^\top G_k[\sigma] = I_{r_k}
+\quad \Longleftrightarrow \quad
+X_{<k}^\top X_{<k} = I_{r_{k-1}},
+\]
+and right-orthonormal if
+\[
+\sum_{\sigma} G_k[\sigma] G_k[\sigma]^\top = I_{r_{k-1}}
+\quad \Longleftrightarrow \quad
+X_{>k} X_{>k}^\top = I_{r_k}.
+\]
+If cores $1, \dots, k-1$ are left-orthonormal and cores $k+1, \dots, N$ are right-orthonormal, then
+\[
+\Phi_{\neq k}^\top \Phi_{\neq k}
+= \big(X_{<k}^\top X_{<k}\big) \otimes I_n \otimes \big(X_{>k} X_{>k}^\top\big)
+= I_{r_{k-1} n r_k},
+\]
+so the frame is an isometry and the norm reduces to a local one, $\braket{\brho | \brho} = \|\mathrm{vec}(G_k)\|_2^2$.
+
+Substituting $\brho = \Phi_{\neq k}\, g_k$ with $g_k := \mathrm{vec}(G_k)$ into the Rayleigh quotient, the denominator collapses to $\|g_k\|_2^2$ and the numerator to $g_k^\top \big(\Phi_{\neq k}^\top M \Phi_{\neq k}\big) g_k$, giving
+\[
+\frac{\braket{\brho | M | \brho}}{\braket{\brho | \brho}}
+= \frac{g_k^\top M_k\, g_k}{g_k^\top g_k},
+\qquad
+M_k := \Phi_{\neq k}^\top M \Phi_{\neq k}
+\in \R^{r_{k-1} n r_k \times r_{k-1} n r_k}.
+\]
+Minimising over the single core is therefore a \emph{small, dense, symmetric eigenproblem}
+\[
+M_k\, g_k = \lambda\, g_k,
+\]
+whose smallest eigenvector is the optimal core. This is the crux of the method: the orthonormal frame turns the intractable $n^N$-dimensional Rayleigh quotient into an eigenproblem of size $r_{k-1} n r_k$, a quantity independent of $N$.
+
+\subsection{Environments}\label{sec:environments}
+
+The projected operator $M_k$ is never assembled by forming $\Phi_{\neq k}$ explicitly, since that matrix has $n^N$ rows. Instead it is contracted from two \emph{environment} tensors that summarise everything to the left and to the right of site $k$. Each environment carries three legs --- a bra bond, an MPO bond, and a ket bond --- and is grown one core at a time:
+\[
+(E^L_{k+1})_{abe}
+= \sum_{p,q,r} \sum_{i,j}
+  (E^L_k)_{pqr}\, (G_k)_{pia}\, (W_k)_{qijb}\, (G_k)_{rje},
+\]
+\[
+(E^R_{k})_{pqr}
+= \sum_{a,b,e} \sum_{i,j}
+  (E^R_{k+1})_{abe}\, (G_k)_{pia}\, (W_k)_{qijb}\, (G_k)_{rje},
+\]
+with trivial boundaries $E^L_1 = E^R_N = 1$ (the core $G_k$ appears twice because the bra and ket trains coincide). The effective operator then acts on a core-shaped tensor $\Psi \in \R^{r_{k-1} \times n \times r_k}$ by
+\[
+(M_k \Psi)_{aic}
+= \sum_{a',c'} \sum_{i',b,b'}
+  (E^L_k)_{aba'}\, (W_k)_{bii'b'}\, (E^R_k)_{cb'c'}\, \Psi_{a'i'c'},
+\]
+which equals $\Phi_{\neq k}^\top M \Phi_{\neq k}$ but is assembled entirely from objects of size $O(r^2 R)$. Because the bra and ket trains coincide, $M_k$ inherits the symmetry and positive semidefiniteness of $M$, so its smallest eigenpair is well defined and can be found by a direct symmetric eigensolver (or by Lanczos iteration for the larger blocks, applying $M_k$ as the matvec above without ever forming it densely).
+
+\subsection{The alternating sweep}\label{sec:sweep}
+
+The single-site algorithm --- the alternating linear scheme (ALS) --- now writes itself. Initialise $\brho$ as a random TT in right-canonical form and precompute all right environments $E^R_k$. Then sweep back and forth across the chain, at each site performing:
+\begin{enumerate}
+    \item \textbf{Local solve.} At site $k$, assemble the action of $M_k$ from $E^L_k$, $W_k$, $E^R_k$ and compute its smallest eigenpair $(\lambda, g_k)$; overwrite $G_k$ with the reshaped eigenvector.
+    \item \textbf{Shift the centre.} On a left-to-right sweep, left-orthonormalise $G_k$ by a QR factorisation and absorb the triangular factor into $G_{k+1}$. This moves the orthogonality centre to $k+1$ while leaving $\brho$ unchanged, and the left environment is extended to $E^L_{k+1}$.
+\end{enumerate}
+Sweeping left-to-right over $k = 1, \dots, N-1$ and then right-to-left returns the centre to its start. Since every local solve minimises the \emph{same} global Rayleigh quotient over a subset of the coordinates, the quotient is monotonically non-increasing along the sweep, and $\lambda$ converges from above to an approximation of $\lambda_{\min}(M)$. Convergence is declared once $\lambda$ stabilises between successive sweeps.
+
+\subsection{Two-site DMRG and rank adaptation}\label{sec:two-site}
+
+The ALS optimises one core at a time and therefore cannot change the bond ranks $r_k$ --- they must be fixed in advance, which is a serious limitation when the required rank is not known. The DMRG proper removes this by optimising two neighbouring cores jointly. At bond $k$ we merge $G_k$ and $G_{k+1}$ into a single supercore
+\[
+\Psi \in \R^{r_{k-1} \times n \times n \times r_{k+1}},
+\qquad
+\Psi_{aijc} = \sum_{s} (G_k)_{ais}\, (G_{k+1})_{sjc},
+\]
+and solve the two-site eigenproblem $M_{k,k+1}\, \mathrm{vec}(\Psi) = \lambda\, \mathrm{vec}(\Psi)$ for the smallest eigenpair, where the effective operator $M_{k,k+1}$ is assembled from $E^L_k$, both MPO cores $W_k, W_{k+1}$, and $E^R_{k+1}$. The optimised supercore is then split back into two cores by a \emph{truncated} singular value decomposition of its $(r_{k-1} n) \times (n r_{k+1})$ unfolding,
+\[
+\Psi_{(ai),(jc)} = U \Sigma V^\top
+\approx \sum_{s=1}^{r_k} U_{:,s}\, \sigma_s\, (V^\top)_{s,:},
+\]
+where the new bond rank $r_k$ is chosen as the number of singular values exceeding a truncation tolerance $\varepsilon$. On a left-to-right sweep one sets $G_k \leftarrow U$ (left-orthonormal) and $G_{k+1} \leftarrow \Sigma V^\top$, carrying the centre rightward; the mirror assignment $G_k \leftarrow U\Sigma$, $G_{k+1} \leftarrow V^\top$ is used on the reverse sweep. Discarding the negligible singular values is exactly how the DMRG \emph{adapts} the ranks: the bond dimension grows where the equilibrium state carries correlation between the two halves of the chain and shrinks where it does not.
+
+\subsection{Recovering the equilibrium distribution}\label{sec:recovery}
+
+At convergence the DMRG returns a TT vector $\brho$ with $\braket{\brho|M|\brho}/\braket{\brho|\brho} = \lambda_{\min} \approx 0$, that is, an approximate null vector of $L$. Its quality is measured directly by the tensor-train residual
+\[
+\frac{\|L\brho\|_2}{\|\brho\|_2} = \sqrt{\lambda_{\min}},
+\]
+evaluated by applying the MPO $L$ to $\brho$ in TT format and taking the TT norm. Finally, invoking Remark~\ref{rem:normalisation}, we rescale $\brho$ to $\|\brho\|_1 = 1$ to obtain the stationary probability distribution of the Glauber chain.
+
+\begin{remark}[A caveat on conditioning]
+Passing from $L$ to $M = L^\top L$ squares the condition number, $\kappa(M) = \kappa(L)^2$, which slows convergence and amplifies rounding error for stiff generators; it also (at most) squares the MPO rank, which is why $M$ must be TT-rounded before the sweeps. When this squaring is too costly, one instead attacks the non-symmetric system directly with the tensor-train GMRES method mentioned above, trading the variational guarantee for a Krylov iteration that never forms $L^\top L$.
+\end{remark}
+\subsection{$L$ as an MPO}\label{sec:glauber-mpo}
+Note that 
+\begin{align*}
+(L\rho)(\sigma)
+&= \sum_{i=1}^N
+\left[
+w_i(\sigma^i)\rho(\sigma^i)
+-
+w_i(\sigma)\rho(\sigma)
+\right] \\[4pt]
+&= \sum_{i=1}^N
+\left[
+w_i(\sigma^i)(F_i\rho)(\sigma)
+-
+w_i(\sigma)\rho(\sigma)
+\right],
+\end{align*}
+where \(F_i\) is the spin-flip operator at site \(i\), so that
+\[
+(F_i\rho)(\sigma)=\rho(\sigma^i).
+\]
+The Glauber flip rate is
+\[
+w_i(\sigma)
+=
+\frac{\alpha}{2}
+\left[
+1-\frac{\gamma}{2}\sigma_i(\sigma_{i-1}+\sigma_{i+1})
+\right].
+\]
+Since \(\sigma^i\) differs from \(\sigma\) only by replacing \(\sigma_i\) with \(-\sigma_i\), we have
+\[
+w_i(\sigma^i)
+=
+\frac{\alpha}{2}
+\left[
+1+\frac{\gamma}{2}\sigma_i(\sigma_{i-1}+\sigma_{i+1})
+\right].
+\]
+Therefore,
+\begin{align*}
+(L\rho)(\sigma)
+&=
+\sum_{i=1}^N
+\frac{\alpha}{2}
+\left[
+1+\frac{\gamma}{2}\sigma_i(\sigma_{i-1}+\sigma_{i+1})
+\right]
+(F_i\rho)(\sigma) \\[4pt]
+&\qquad
+-
+\sum_{i=1}^N
+\frac{\alpha}{2}
+\left[
+1-\frac{\gamma}{2}\sigma_i(\sigma_{i-1}+\sigma_{i+1})
+\right]
+\rho(\sigma) \\[4pt]
+&=
+\frac{\alpha}{2}
+\sum_{i=1}^N
+\left[
+(F_i\rho)(\sigma)-\rho(\sigma)
+\right] \\[4pt]
+&\qquad
++
+\frac{\alpha\gamma}{4}
+\sum_{i=1}^N
+\sigma_i(\sigma_{i-1}+\sigma_{i+1})
+\left[
+(F_i\rho)(\sigma)+\rho(\sigma)
+\right].
+\end{align*}
+Let the following denote 
+\[
+I=
+\begin{pmatrix}
+1&0\\
+0&1
+\end{pmatrix},
+\qquad
+F=
+\begin{pmatrix}
+0&1\\
+1&0
+\end{pmatrix},
+\qquad
+Z=
+\begin{pmatrix}
+1&0\\
+0&-1
+\end{pmatrix}.
+\]
+the local \(2\times 2\) matrices. We can denote the site a matrix acts on with the following notation. for any single-site operator \(O \in \{I, F, Z\}\), we write
+\[
+O_i := I^{\otimes(i-1)} \otimes O \otimes I^{\otimes(N-i)},
+\]
+for the operator that applies \(O\) to spin \(i\) and the identity to the other \(N-1\) spins, so that \(O_i\) acts on the full \(2^N\)-dimensional configuration space. 
+Here \(I\) leaves a spin unchanged, \(F\) flips a spin, and \(Z\) multiplies by the spin value:
+\[
+(Z_i\rho)(\sigma)=\sigma_i\rho(\sigma).
+\]
+Thus,
+\[
+\sigma_i\sigma_{i-1}\rho(\sigma)
+=
+(Z_{i-1}Z_i\rho)(\sigma),
+\qquad
+\sigma_i\sigma_{i+1}\rho(\sigma)
+=
+(Z_iZ_{i+1}\rho)(\sigma).
+\]
+Also,
+\[
+\sigma_i\sigma_{i-1}(F_i\rho)(\sigma)
+=
+(Z_{i-1}Z_iF_i\rho)(\sigma),
+\qquad
+\sigma_i\sigma_{i+1}(F_i\rho)(\sigma)
+=
+(Z_iZ_{i+1}F_i\rho)(\sigma).
+\]
+Therefore, the operator \(L\) can be written as
+\begin{align*}
+L
+&=
+\frac{\alpha}{2}
+\sum_{i=1}^N
+(F_i-I)
++
+\frac{\alpha\gamma}{4}
+\sum_{i=1}^N
+\left[
+Z_{i-1}Z_i(F_i+I)
++
+Z_iZ_{i+1}(F_i+I)
+\right] \\[4pt]
+&=
+\frac{\alpha}{2}
+\sum_{i=1}^N
+(F_i-I)
++
+\frac{\alpha\gamma}{4}
+\sum_{i=1}^N
+\left[
+Z_{i-1}Z_iF_i
++
+Z_{i-1}Z_i
++
+Z_iZ_{i+1}F_i
++
+Z_iZ_{i+1}
+\right].
+\end{align*}
+Each local operator is understood as a Kronecker product acting on the full \(N\)-spin space. Specifically,
+\begin{align*}
+F_i
+&=
+I^{\otimes(i-1)}
+\otimes F
+\otimes I^{\otimes(N-i)}, \\[4pt]
+Z_{i-1}Z_iF_i
+&=
+I^{\otimes(i-2)}
+\otimes Z
+\otimes (ZF)
+\otimes I^{\otimes(N-i)}, \\[4pt]
+Z_{i-1}Z_i
+&=
+I^{\otimes(i-2)}
+\otimes Z
+\otimes Z
+\otimes I^{\otimes(N-i)}, \\[4pt]
+Z_iZ_{i+1}F_i
+&=
+I^{\otimes(i-1)}
+\otimes (ZF)
+\otimes Z
+\otimes I^{\otimes(N-i-1)}, \\[4pt]
+Z_iZ_{i+1}
+&=
+I^{\otimes(i-1)}
+\otimes Z
+\otimes Z
+\otimes I^{\otimes(N-i-1)}.
+\end{align*}
+Substituting these Kronecker forms into \(L\), we get
+\begin{align*}
+L
+&=
+\frac{\alpha}{2}
+\sum_{i=1}^N
+\left[
+I^{\otimes(i-1)}
+\otimes (F-I)
+\otimes I^{\otimes(N-i)}
+\right] \\[4pt]
+&\quad
++
+\frac{\alpha\gamma}{4}
+\sum_{i=1}^N
+\left[
+I^{\otimes(i-2)}
+\otimes Z
+\otimes (ZF+Z)
+\otimes I^{\otimes(N-i)}
+\right] \\[4pt]
+&\quad
++
+\frac{\alpha\gamma}{4}
+\sum_{i=1}^N
+\left[
+I^{\otimes(i-1)}
+\otimes (ZF+Z)
+\otimes Z
+\otimes I^{\otimes(N-i-1)}
+\right].
+\end{align*}
+where 
+\begin{align*}
+L_i
+&=
+\frac{\alpha}{2}
+\left[
+I^{\otimes(i-1)}
+\otimes (F-I)
+\otimes I^{\otimes(N-i)}
+\right] \\[4pt]
+&\quad
++
+\frac{\alpha\gamma}{4}
+\left[
+I^{\otimes(i-2)}
+\otimes Z
+\otimes (ZF+Z)
+\otimes I^{\otimes(N-i)}
+\right] \\[4pt]
+&\quad
++
+\frac{\alpha\gamma}{4}
+\left[
+I^{\otimes(i-1)}
+\otimes (ZF+Z)
+\otimes Z
+\otimes I^{\otimes(N-i-1)}
+\right].
+\end{align*}
+where $L = \sum_i L_i$. For a periodic ring the indices are read modulo \(N\), so that $Z_0 = Z_N$ and $Z_{N+1} = Z_1$.
+
+\subsubsection{Compact form and minimal rank}
+
+To pass to a matrix-product operator (MPO) it is convenient to name the two recurring single-site blocks
+\[
+S := F - I =
+\begin{pmatrix} -1 & 1 \\ 1 & -1 \end{pmatrix},
+\qquad
+G := ZF + Z = Z(F+I) =
+\begin{pmatrix} 1 & 1 \\ -1 & -1 \end{pmatrix},
+\]
+and to abbreviate the constants $a := \tfrac{\alpha}{2}$ and $c := \tfrac{\alpha\gamma}{4}$. Grouping the Kronecker terms above by the sites they touch, $L$ takes the compact nearest-neighbour form
+\[
+L = \sum_{i=1}^N \Big[\, a\, S_i \;+\; c\, Z_{i-1} G_i \;+\; c\, G_i Z_{i+1} \,\Big],
+\qquad \text{indices mod } N,
+\]
+one on-site term $a S_i$ together with two two-site couplings, each pairing a factor $G$ on site $i$ with a factor $Z$ on an adjacent site.
+
+It is these two-site couplings that fix the MPO rank, and the rank depends on whether the chain is open or closed into a ring. Cut the lattice between sites $k$ and $k+1$ and count the terms that straddle the cut; the minimal MPO bond dimension across a cut equals the operator Schmidt rank there.
+
+\emph{Open chain.} The only straddling terms are the local pair
+\[
+c\left( G_k Z_{k+1} + Z_k G_{k+1} \right),
+\]
+of operator Schmidt rank $2$ (the left factors $\{G, Z\}$ and right factors $\{Z, G\}$ are linearly independent). Adding the two unavoidable boundary channels --- ``everything already placed on the left'' $\otimes\, I$ and $I \otimes$ ``everything still to be placed on the right'' --- gives Schmidt rank $2 + 2 = 4$, so the open-chain generator has minimal MPO bond dimension $4$.
+
+\emph{Periodic ring.} An interior cut ($2 \le k \le N-1$) is straddled in addition by the two wrap-around couplings $c(Z_N G_1 + G_N Z_1)$, which place $G_1, Z_1$ on the left of the cut and $Z_N, G_N$ on the right. These are two further independent product terms, raising the Schmidt rank to $4 + 2 = 6$; the minimal bond dimension on the ring is therefore $6$.
+\subsubsection{The open-chain MPO}
+
+Reading $L$ as a finite-state machine --- start; or emit $Z$ and wait to emit $G$; or emit $G$ and wait to emit $Z$; or done --- gives, for the \emph{open} chain, the exact rank-$4$ MPO with bulk core
+\[
+W^{[i]} =
+\begin{pmatrix}
+I  & 0   & 0   & 0 \\
+G  & 0   & 0   & 0 \\
+Z  & 0   & 0   & 0 \\
+aS & cZ  & cG  & I
+\end{pmatrix},
+\qquad 2 \le i \le N-1,
+\]
+and boundary cores $W^{[1]} = \begin{pmatrix} aS & cZ & cG & I \end{pmatrix}$ (its bottom row) and $W^{[N]} = \begin{pmatrix} I & G & Z & aS \end{pmatrix}^{\!\top}$ (its first column), so that $L_{\mathrm{open}} = W^{[1]}\,W^{[2]} \cdots W^{[N]}$, the product taken over the bond indices with the local operators tensored across sites. The start row (row $4$) either emits the on-site term $aS$ and drops into the done column (column $1$), or emits $cZ$ (respectively $cG$) to enter the ``waiting-for-$G$'' (respectively ``waiting-for-$Z$'') channel that the next site closes with $G$ (respectively $Z$). Contracting the cores reproduces the on-site terms and every \emph{interior} coupling, but not the wrap-around terms $c(Z_N G_1 + G_N Z_1)$; it is therefore the generator of the open chain, not of the ring.
+
+\subsubsection{The periodic (ring) MPO}
+
+To capture the wrap-around couplings the finite-state machine is given two extra pass-through channels: at site $1$ it may emit a $G$ (respectively $Z$) into a channel that the identity carries across the interior, to be closed at site $N$ by $cZ$ (respectively $cG$). This yields the exact rank-$6$ MPO with bulk core
+\[
+W^{[i]} =
+\begin{pmatrix}
+I  & 0   & 0   & 0  & 0 & 0 \\
+G  & 0   & 0   & 0  & 0 & 0 \\
+Z  & 0   & 0   & 0  & 0 & 0 \\
+aS & cZ  & cG  & I  & 0 & 0 \\
+0  & 0   & 0   & 0  & I & 0 \\
+0  & 0   & 0   & 0  & 0 & I
+\end{pmatrix},
+\qquad 2 \le i \le N-1,
+\]
+whose top-left $4\times4$ block is the open-chain core above and whose channels $5, 6$ are pure identity pass-throughs. The boundary cores carry the wrap operators,
+\[
+W^{[1]} = \begin{pmatrix} aS & cZ & cG & I & G & Z \end{pmatrix},
+\qquad
+W^{[N]} = \begin{pmatrix} I & G & Z & aS & cZ & cG \end{pmatrix}^{\!\top},
+\]
+so that
+\[
+L = W^{[1]}\,W^{[2]} \cdots W^{[N]}.
+\]
+Channel $5$ is entered only at site $1$ (emitting $G$) and left only at site $N$ (emitting $cZ$), producing the term $c\,Z_N G_1$; channel $6$ symmetrically produces $c\,G_N Z_1$. Since the interior bulk core has no entry linking these channels to the start or done states, they contribute exactly the two wrap couplings and nothing spurious. The construction was verified against a direct assembly of $L$ for $N = 2, \dots, 5$.
+
+Finally, the DMRG of Section~\ref{sec:variational} operates on $M = L^\top L$, whose MPO rank is at most $6^2 = 36$ before rounding --- precisely the rank-squaring flagged in Section~\ref{sec:recovery}.
+
+\section{Numerical Validation}\label{sec:numerics}
+
+Both solution routes of Section~\ref{sec:tt-motivation} were implemented and tested on the Glauber ring against an exact reference. Throughout we take $J = 1$, $kT = 1.5$ --- so that $\gamma = \tanh(2J/kT) \approx 0.870$ --- and $\alpha = 1$.
+
+\subsection{The exact reference: the Ising Gibbs measure}
+
+The Glauber rates were fixed in Section~\ref{sec:glauber} precisely so that, by detailed balance, the stationary distribution is the one-dimensional Ising Gibbs measure
+\[
+\pi(\sigma) \;\propto\; \exp\!\Big( \tfrac{J}{kT} \textstyle\sum_i \sigma_i \sigma_{i+1} \Big),
+\qquad L\pi = 0.
+\]
+This measure is known in closed form and has an exact low-rank TT representation built from the $2\times2$ Ising transfer matrix: TT-rank $2$ on an open chain, raised to $4$ in the interior on the ring by the periodic wraparound bond --- the same $+2$ rank increase the wraparound induces in the operator MPO (Section~\ref{sec:glauber-mpo}). It therefore serves as an unambiguous ground truth against which both solvers can be measured.
+
+\subsection{DMRG}
+
+The generator was assembled as an MPO by feeding the terms $a S_i + c Z_{i-1} G_i + c G_i Z_{i+1}$ of Section~\ref{sec:glauber-mpo} into the sum-of-Kroneckers construction and TT-rounding. The resulting bond dimensions come out as
+\[
+[\,1,\; 4,\; \underbrace{6,\; \dots,\; 6}_{\text{interior}},\; 4,\; 1\,],
+\]
+numerically confirming the rank analysis of Section~\ref{sec:glauber-mpo}: the interior bonds realise the minimal ring rank $6$, while the two bonds adjacent to the boundary sites --- where the wrap couplings share operators --- drop to $4$.
+
+Running the two-site DMRG of Sections~\ref{sec:variational}--\ref{sec:two-site} on $M = L^\top L$ recovers the Gibbs measure to machine precision: the smallest eigenvalue is $\lambda_{\min} \approx 0$, the residual $\|L\brho\|_2 / \|\brho\|_2$ is at the level of $10^{-8}$ or below, and the normalised overlap $\langle \brho, \pi\rangle / (\|\brho\|_2\|\pi\|_2)$ equals $1$ to eight digits (Table~\ref{tab:numerics}).
+
+\subsection{Bordered TT-GMRES}\label{sec:tt-gmres}
+
+The homogeneous problem $L\brho = 0$ can also be solved with the non-symmetric TT-GMRES iteration \emph{directly}, without ever forming $M = L^\top L$ and hence without squaring the condition number. Doing so requires one preliminary step, because $L$ cannot be handed to GMRES as it stands.
+
+\subsubsection*{Why $L$ cannot be given to GMRES directly}
+
+GMRES is a solver for a \emph{non-singular} system $Ax = b$: at each step it enlarges a Krylov subspace and returns the unique vector in it that minimises the residual $\|b - Ax\|_2$. The Glauber generator is singular (Proposition~\ref{prop:singular}). It has the one-dimensional null space $\ker L = \operatorname{span}\{\pi\}$ spanned by the stationary vector, so its smallest eigenvalue is exactly $0$. Consequently the equation we care about, $L\brho = 0$, has no unique solution: every scalar multiple $c\,\pi$ satisfies it, and so does $\brho = 0$. Started from the natural initial guess $\brho = 0$, GMRES simply returns $0$; there is nothing for the iteration to converge to.
+
+\subsubsection*{The border and what it does to the spectrum}
+
+The remedy is to \emph{border} $L$ with a rank-one term and to solve, in place of the homogeneous equation, the inhomogeneous system
+\[
+\big(L + \mathbf{1}\mathbf{1}^\top\big)\,\brho = \mathbf{1},
+\]
+where $\mathbf{1} \in \R^{2^N}$ is the all-ones vector. The rank-one term does precisely one thing to the spectrum: it \emph{lifts the zero eigenvalue off the origin while leaving every other eigenvalue untouched}. On the $N = 6$ ring, for instance, the two eigenvalues of $L$ nearest the origin are $0$ and $0.130$, whereas those of $L + \mathbf{1}\mathbf{1}^\top$ are $0.130$ and $0.130$: the $0$ has been pushed up and nothing else has moved. The bordered operator is therefore non-singular, and GMRES is given a unique target.
+
+\subsubsection*{Why $\mathbf{1}$ is the correct border vector}
+
+For a general rank-one border $L + u v^\top$ solved against the right-hand side $u$, two conditions are needed --- the operator must be non-singular, and its solution must be the stationary state --- and both reduce to the border ``seeing'' the two singular directions of $L$: its right null vector $\pi$ (with $L\pi = 0$) and its left null vector $w$ (with $w^\top L = 0$). Concretely one needs
+\begin{enumerate}
+    \item $v^\top \pi \neq 0$: the border overlaps the \emph{right} null vector, and
+    \item $w^\top u \neq 0$: the border overlaps the \emph{left} null vector.
+\end{enumerate}
+The choice $u = v = \mathbf{1}$ meets both, for reasons that are physical rather than accidental:
+\begin{itemize}
+    \item $\mathbf{1}$ \emph{is} the left null vector of $L$. Since $L$ is a Markov generator, total probability is conserved, which means every column of $L$ sums to zero --- exactly the statement $\mathbf{1}^\top L = 0$. Hence $w = \mathbf{1}$ and $w^\top u = \mathbf{1}^\top \mathbf{1} = 2^N \neq 0$.
+    \item $\mathbf{1}$ overlaps the right null vector positively. Because $\pi$ is a probability distribution with strictly positive entries, $\mathbf{1}^\top \pi = \sum_\sigma \pi(\sigma) > 0$ (indeed $= 1$ once normalised).
+\end{itemize}
+That these hold guarantees invertibility explicitly. Suppose $(L + \mathbf{1}\mathbf{1}^\top)x = 0$. Then $Lx = -\mathbf{1}(\mathbf{1}^\top x)$; left-multiplying by $\mathbf{1}^\top$ and using $\mathbf{1}^\top L = 0$ gives $0 = -(\mathbf{1}^\top \mathbf{1})(\mathbf{1}^\top x)$, so $\mathbf{1}^\top x = 0$. But then $Lx = 0$, so $x = c\,\pi$ for some scalar $c$, and $\mathbf{1}^\top x = c\,\mathbf{1}^\top \pi = 0$ forces $c = 0$ because $\mathbf{1}^\top \pi > 0$. Hence $x = 0$, and $L + \mathbf{1}\mathbf{1}^\top$ is non-singular.
+
+\subsubsection*{The solution is exactly the stationary state}
+
+Crucially, the border makes the operator invertible \emph{without corrupting the answer}. The unique solution of the bordered system is
+\[
+\brho = \frac{\pi}{\mathbf{1}^\top \pi},
+\]
+as one verifies by direct substitution, using $L\pi = 0$:
+\[
+\big(L + \mathbf{1}\mathbf{1}^\top\big)\frac{\pi}{\mathbf{1}^\top \pi}
+= \underbrace{\frac{L\pi}{\mathbf{1}^\top \pi}}_{=\,0}
++ \mathbf{1}\,\frac{\mathbf{1}^\top \pi}{\mathbf{1}^\top \pi}
+= \mathbf{1}.
+\]
+Thus $\brho$ is an exact null vector of $L$ (that is, $L\brho = 0$), and the border has served only to pin down the otherwise free scale, fixing it to $\mathbf{1}^\top \brho = 1$. The rank-one scaffold has disappeared from the final answer.
+
+Both the border $\mathbf{1}\mathbf{1}^\top = \bigotimes_k \mathbf{1}_{2\times2}$ and the right-hand side $\mathbf{1} = \bigotimes_k \mathbf{1}_{2}$ are rank-one in TT form (each is a product over the sites), so bordering adds only a single channel and the operator MPO of Section~\ref{sec:glauber-mpo} keeps its small bond dimension.
+
+\subsubsection*{Exactness for the Glauber generator}
+
+Unlike the finite-difference Fokker--Planck operator --- whose zero eigenvalue is only \emph{approximately} zero once the domain is truncated, leaving a merely near-singular direction --- the Glauber generator is \emph{exactly} singular. The bordered system is therefore exactly non-singular, with the lifted eigenvalue a full $O(1)$ away from the origin, and a single TT-GMRES solve returns $\pi$ to the solver tolerance: numerically the recovered vector satisfies $\|L\brho\|_2/\|\brho\|_2 \sim 10^{-14}$ (machine precision, confirming the exact singularity) with unit overlap against $\pi$.
+
+\subsection{Summary}
+
+Both methods reproduce the exact Gibbs measure to machine precision on the tested rings (Table~\ref{tab:numerics}); the implementations are the scripts \texttt{glauber\_mpo.py} (DMRG) and \texttt{glauber\_gmres.py} (bordered TT-GMRES). The small-$N$ range reflects the brute-force reference used for validation, not a limitation of the solvers; the behaviour of the fixed all-ones border at large $N$ was not investigated.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{l c c c}
+\hline
+Method & $N$ & $\langle \brho, \pi\rangle$ overlap & $\|\brho - \pi\|_1$ \\
+\hline
+DMRG            & $6$  & $1.0000000$ & $9.4 \times 10^{-13}$ \\
+DMRG            & $8$  & $1.0000000$ & $1.8 \times 10^{-12}$ \\
+DMRG            & $10$ & $1.0000000$ & $2.0 \times 10^{-12}$ \\
+Bordered TT-GMRES & $6$  & $1.0000000$ & $1.0 \times 10^{-13}$ \\
+Bordered TT-GMRES & $8$  & $1.0000000$ & $1.3 \times 10^{-13}$ \\
+\hline
+\end{tabular}
+\caption{Accuracy of the two solvers against the exact Ising Gibbs measure $\pi$ on a Glauber ring of $N$ spins ($J=1$, $kT=1.5$, $\alpha=1$). The recovered vector $\brho$ is normalised to a probability distribution; the overlap is the cosine similarity with $\pi$.}
+\label{tab:numerics}
+\end{table}
+
+\end{document}
+

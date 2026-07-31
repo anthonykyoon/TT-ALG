@@ -1,0 +1,32 @@
+\contentsline {section}{\numberline {1}Introduction to Problem Statement}{3}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Why is the symmetric property so important}{3}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Applications to Higher Dimensional cases}{3}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Explanation of the Galerkin Method}{4}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}The Galerkin Method}{4}{subsection.1.4}%
+\contentsline {subsubsection}{\numberline {1.4.1}Strong and Weak Formulations}{4}{subsubsection.1.4.1}%
+\contentsline {subsubsection}{\numberline {1.4.2}Discretisation by Basis Functions}{5}{subsubsection.1.4.2}%
+\contentsline {subsubsection}{\numberline {1.4.3}The Stiffness Matrix and Load Vector}{5}{subsubsection.1.4.3}%
+\contentsline {subsubsection}{\numberline {1.4.4}Sparsity of the Stiffness Matrix}{6}{subsubsection.1.4.4}%
+\contentsline {subsubsection}{\numberline {1.4.5}Limitations of the Symmetric Galerkin Framework}{7}{subsubsection.1.4.5}%
+\contentsline {subsection}{\numberline {1.5}The Petrov--Galerkin Method}{7}{subsection.1.5}%
+\contentsline {section}{\numberline {2}Fokker--Planck Equations}{8}{section.2}%
+\contentsline {section}{\numberline {3}Formulation of Glauber Dynamics into TT language }{11}{section.3}%
+\contentsline {subsection}{\numberline {3.1}A summary of the Glauber Dynamics}{11}{subsection.3.1}%
+\contentsline {section}{\numberline {4}Motivation of using Tensor Trains}{15}{section.4}%
+\contentsline {subsection}{\numberline {4.1}The variational template and the equilibrium problem}{16}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Tensor-train representation}{17}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Linearity in a single core}{17}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Orthogonalisation and the local eigenproblem}{18}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Environments}{19}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}The alternating sweep}{19}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.7}Two-site DMRG and rank adaptation}{20}{subsection.4.7}%
+\contentsline {subsection}{\numberline {4.8}Recovering the equilibrium distribution}{20}{subsection.4.8}%
+\contentsline {subsection}{\numberline {4.9}$L$ as an MPO}{21}{subsection.4.9}%
+\contentsline {subsubsection}{\numberline {4.9.1}Compact form and minimal rank}{23}{subsubsection.4.9.1}%
+\contentsline {subsubsection}{\numberline {4.9.2}The open-chain MPO}{24}{subsubsection.4.9.2}%
+\contentsline {subsubsection}{\numberline {4.9.3}The periodic (ring) MPO}{25}{subsubsection.4.9.3}%
+\contentsline {section}{\numberline {5}Numerical Validation}{26}{section.5}%
+\contentsline {subsection}{\numberline {5.1}The exact reference: the Ising Gibbs measure}{26}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}DMRG}{26}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Bordered TT-GMRES}{26}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Summary}{29}{subsection.5.4}%
