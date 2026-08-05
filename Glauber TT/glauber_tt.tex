@@ -52,11 +52,11 @@
 \tableofcontents
 \newpage 
 \section{Formulation of Glauber Dynamics into TT language }\label{sec:glauber}
-Given the 1D Ising model, where we assume that there is a lattice of electrons, we can use the results found by Roy J Glauber to model it. First, the key results from Glauber's 'Time-Dependent Statistics of the Ising Model" are summarized, and then we demonstrate how to translate this to tensor train language.
+Given the 1D Ising model, where we assume that there is a lattice of electrons, we can use the results found by Roy J Glauber to model it. First, the key results from Glauber's ``Time-Dependent Statistics of the Ising Model'' are summarized, and then we demonstrate how to translate this to tensor train language.
 \subsection{A summary of the Glauber Dynamics}\label{sec:glauber-summary}
 Assume we have $N$ fixed particles in a lattice, whose configurations can be reshaped into a ring. We denote the position of the $N$ particles as $\boldsymbol{\sigma}(t) = \{\sigma_1(t), \sigma_2(t), \dots, \sigma_N(t)\}$, where each position is a stochastic function of time. For each of these positions, we allow each $\sigma_i$ to take values from $\pm 1$. We assume that these spin transitions happen because of interaction of spins with an external agent, such as an external heat source, and the spins of all $N$ electrons on each other. Thus, we can see that the spin functions form a Markov process of $N$ discrete, continuous-time random variables.
 
-To provide some intuition for $N$ spin chains, consider a singular electron spinning. We make the assumption that there exists no magnetic field within the system, which means that there is no bias towards any of the states. Then, let $\alpha /2 $ denote the rate per unit time at which the particle makes a transition in between each state. We can see that the spin takes on a value $\sigma$ at time $t$ can be expressed as 
+To provide some intuition for $N$ spin chains, consider a singular electron spinning. We make the assumption that there exists no magnetic field within the system, which means that there is no bias towards any of the states. Then, let $\alpha /2 $ denote the rate per unit time at which the particle makes a transition in between each state. We can see that the time evolution of the probability that the spin takes on a value $\sigma$ at time $t$ can be expressed as
 \[
 \frac{d}{dt} p(\sigma,t) = -\frac{\alpha}{2}p(\sigma, t) + \frac{\alpha}{2}p(-\sigma, t) \qquad (1)
 \]
@@ -83,7 +83,7 @@ From $(1)$, we can see that
 \end{align*}
 The solution to the above differential equation is given as $q(t) = q(0)e^{-\alpha t}$, which implies that the mean spin decays exponentially at a rate of $\alpha^{-1}$. 
 
-Now, consider the spin system of size $N$ as previously mentioned. We make the assumption that for a spin $i$, its neighbors' momentum influences the spin of the system. Note that there are $2^N$ elements in the sample space of the spin configuration. Let $w_i(\sigma_i)$ denote the probability per unit time that spin $i$ flips while the others remain momentarily fixed. We can express the derivative with respect to time of the probability function $p(\sigma_1, \sigma_2, \dots, \sigma_N, t)$ can be expressed as 
+Now, consider the spin system of size $N$ as previously mentioned. We make the assumption that for a spin $i$, its neighbors' momentum influences the spin of the system. Note that there are $2^N$ elements in the sample space of the spin configuration. Let $w_i(\sigma_i)$ denote the probability per unit time that spin $i$ flips while the others remain momentarily fixed. The derivative with respect to time of the probability function $p(\sigma_1, \sigma_2, \dots, \sigma_N, t)$ can be expressed as
 \[
 \frac{d}{dt} p(\sigma_1, \sigma_2, \dots, \sigma_N, t) = - \left[ \sum_i w_i(\sigma_i)\right]p(\sigma_1, \sigma_2, \dots, \sigma_N, t) + \sum_i w_i(-\sigma_i) p(\sigma_1, \dots, -\sigma_i,\dots,  \sigma_N, t) 
 \]
@@ -684,6 +684,17 @@ Channel $5$ is entered only at site $1$ (emitting $G$) and left only at site $N$
 
 Finally, the DMRG of Section~\ref{sec:variational} operates on $M = L^\top L$, whose MPO rank is at most $6^2 = 36$ before rounding --- precisely the rank-squaring flagged in Section~\ref{sec:recovery}.
 
+\begin{remark}[The order-$4$ core as an order-$3$ MPS core]\label{rem:mpo-as-mps}
+Each core $W^{[i]} \in \R^{R_{k-1}\times n \times n \times R_k}$ above is an order-$4$ tensor: two bond legs $R_{k-1}, R_k$ (the outer $4\times4$ or $6\times6$ layout) and two physical legs $n \times n$ (the row/column indices $(\sigma_i, \sigma_i')$ of each inner $2\times2$ block). Fusing the two physical legs into a single super-index of dimension $n^2$,
+\[
+W^{[i]} \in \R^{R_{k-1}\times n \times n \times R_k}
+\;\longmapsto\;
+\widetilde W^{[i]} \in \R^{R_{k-1}\times n^2 \times R_k},
+\qquad (\sigma_i, \sigma_i') \mapsto \operatorname{vec}(\,\cdot\,),
+\]
+turns each order-$4$ MPO core into an order-$3$ MPS core. This is the operator-as-state (vectorisation) view: the generator $L$ on $\R^{n^N}$ is reread as a single MPS vector $\operatorname{vec}(L) \in \R^{(n^2)^N}$ on super-sites of dimension $n^2 = 4$, whose cores carry $\operatorname{vec}(I), \operatorname{vec}(G), \operatorname{vec}(Z), \operatorname{vec}(aS), \dots$ in the fused slot. The reshape is lossless and leaves the bond dimensions untouched ($4$ open, $6$ on the ring), so it is purely a relabelling; an order-$3$ core is possible only through this physical-leg fusion, since a genuine operator core needs both a row (output) and a column (input) index and is therefore intrinsically order $4$.
+\end{remark}
+
 \section{Numerical Validation}\label{sec:numerics}
 
 Both solution routes of Section~\ref{sec:tt-motivation} were implemented and tested on the Glauber ring against an exact reference. Throughout we take $J = 1$, $kT = 1.5$ --- so that $\gamma = \tanh(2J/kT) \approx 0.870$ --- and $\alpha = 1$.
@@ -757,6 +768,38 @@ Both the border $\mathbf{1}\mathbf{1}^\top = \bigotimes_k \mathbf{1}_{2\times2}$
 \subsubsection*{Exactness for the Glauber generator}
 
 Unlike the finite-difference Fokker--Planck operator --- whose zero eigenvalue is only \emph{approximately} zero once the domain is truncated, leaving a merely near-singular direction --- the Glauber generator is \emph{exactly} singular. The bordered system is therefore exactly non-singular, with the lifted eigenvalue a full $O(1)$ away from the origin, and a single TT-GMRES solve returns $\pi$ to the solver tolerance: numerically the recovered vector satisfies $\|L\brho\|_2/\|\brho\|_2 \sim 10^{-14}$ (machine precision, confirming the exact singularity) with unit overlap against $\pi$.
+
+\subsection{Computational complexity}\label{sec:complexity}
+
+We close with a naive cost comparison of the two solvers. Constants are dropped, the physical dimension $n = 2$ is treated as a constant, and the working TT bond dimension of the iterate is held at $r$. Let $N$ be the chain length, $R$ the MPO bond dimension of $L$ (here $R = 4$ open, $R = 6$ on the ring), and $m$ the GMRES Krylov/restart depth. The one structural fact underlying both estimates is that each method visits the $N$ sites and pays a cost \emph{polynomial in the ranks} rather than exponential in $N$: the dense state space is $2^N$, but neither algorithm ever forms a length-$2^N$ vector. Both costs are therefore linear in $N$ --- the entire point of the tensor-train format.
+
+\paragraph{DMRG (variational null vector of $M = L^\top L$).}
+The work is one two-site problem per site, repeated over sweeps. The two-site supercore has $r\,n\,n\,r = O(r^2)$ entries, and DMRG runs on $M = L^\top L$, whose MPO bond dimension is $R^2$. Assembling and solving the dense two-site effective operator therefore costs $\bigO{r^4 (R^2)^2} = \bigO{r^4 R^4}$ per site, giving
+\[
+T_{\mathrm{DMRG}} = \bigO{N_{\mathrm{sweeps}} \cdot N \cdot r^4 R^4}.
+\]
+The cost is quartic in the rank $r$ and carries a factor $R^4$ (that is, $1296$ on the ring): forming $L^\top L$ \emph{squares} the MPO bond ($R \to R^2$), and the two-site assembly squares it once more. The same squaring raises the condition number, $\kappa(M) = \kappa(L)^2$, so $N_{\mathrm{sweeps}}$ also tends to grow --- a second, implicit penalty.
+
+\paragraph{Bordered TT-GMRES ($(L + \mathbf{1}\mathbf{1}^\top)\brho = \mathbf{1}$).}
+The work is $T$ restart cycles, each performing $m$ Arnoldi steps. Per Arnoldi step the matrix-vector product $Av$ raises the rank $r \to Rr$ at cost $\bigO{N R^2 r^2}$, after which the result is TT-rounded back to rank $r$ at cost $\bigO{N (Rr)^3} = \bigO{N R^3 r^3}$, the dominant term; the modified Gram--Schmidt orthogonalisation accumulates to $\bigO{m^2 N r^3}$ over a cycle. With $m R^3 \gg m^2$ the apply-and-round term wins, so
+\[
+T_{\mathrm{GMRES}} = \bigO{T \cdot m \cdot N \cdot r^3 R^3}.
+\]
+This is one power lower than DMRG in \emph{both} the rank $r$ and the MPO bond $R$, precisely because GMRES never forms $L^\top L$ and so pays $R$ rather than $R^2$. The price is the extra $T\,m$ matrix-vector factor, the loss of the symmetric variational guarantee, and --- since this is inexact (truncated) GMRES --- a hard residual floor set by \texttt{max\_rank}: too small an $r$ stagnates above the tolerance no matter how large $T$ and $m$ are.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{l c c c c}
+\hline
+Method & per site/step & total (naive) & rank & bond \\
+\hline
+DMRG            & $r^4 R^4$ & $\bigO{N_{\mathrm{sweeps}}\, N\, r^4 R^4}$ & $r^4$ & $R^4$ \\
+Bordered TT-GMRES & $r^3 R^3$ & $\bigO{T\, m\, N\, r^3 R^3}$              & $r^3$ & $R^3$ \\
+\hline
+\end{tabular}
+\caption{Naive per-step and total cost of the two solvers. Both scale linearly in $N$. DMRG is a full power of the rank $r$ and of the MPO bond $R$ more expensive per site --- the concrete price of the $L^\top L$ squaring --- but is a monotone variational solve whose residual is always reducible by adding rank. TT-GMRES is cheaper per step and sidesteps the squaring, at the cost of $T\,m$ matrix-vector products, non-symmetric convergence that depends on conditioning, and a rank-imposed residual floor. This is the quantitative form of the trade-off noted in Section~\ref{sec:recovery}.}
+\label{tab:complexity}
+\end{table}
 
 \subsection{Summary}
 

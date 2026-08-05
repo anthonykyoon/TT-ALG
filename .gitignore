@@ -25,6 +25,36 @@ high_d_failure_cases.md
 
 
 
+# LaTeX auxiliary / build files (keep the .tex and .pdf, drop the rest)
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.nav
+*.snm
+*.vrb
+*.idx
+*.ind
+*.ilg
+*.glo
+*.gls
+*.glg
+*.acn
+*.acr
+*.alg
+*.xdy
+*.brf
+
 # OS / editor
 .DS_Store
 *.swp
