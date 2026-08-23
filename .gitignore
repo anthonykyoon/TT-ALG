@@ -20,6 +20,7 @@ env/
 /Manifest.toml
 
 # Generated output (plots, large notes)
+notes/
 Notes_DMRG_sketching.pdf
 high_d_failure_cases.md 
 
@@ -54,6 +55,12 @@ high_d_failure_cases.md
 *.alg
 *.xdy
 *.brf
+
+# Glauber sweep results: one folder per sweep, written by glauber_solve.py
+# and plot_results.py.  Figures kept for the papers live in figures/ instead.
+results/
+glauber_results*.csv
+*_vs_N*.png
 
 # OS / editor
 .DS_Store

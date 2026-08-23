@@ -17,11 +17,24 @@ Produces three figures:
 The same `glauber` routine drives every case; only the lattice shape changes.
 """
 
+import os
 import warnings
 
 import numpy as np
 
 from glauber_dynamics import glauber
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+# The demo's three figures are kept for the write-up, so they go in figures/
+# rather than wherever the script happened to be launched from.
+REPO = os.path.dirname(HERE) if os.path.basename(HERE) == "src" else HERE
+FIGURES_DIR = os.path.join(REPO, "figures")
+
+
+def figure_path(name):
+    os.makedirs(FIGURES_DIR, exist_ok=True)
+    return os.path.join(FIGURES_DIR, name)
+
 
 # np.exp(dE/T) overflows harmlessly at low T (p_flip -> 0); quiet it for a
 # clean demo run.
@@ -125,8 +138,8 @@ def main():
     plt.title("Relaxation toward order below $T_c$ (2D vs. 4D)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("glauber_relaxation.png", dpi=120)
-    print("\nWrote glauber_relaxation.png")
+    plt.savefig(figure_path("glauber_relaxation.png"), dpi=120)
+    print("\nWrote " + figure_path("glauber_relaxation.png"))
 
     plt.figure(figsize=(6, 4))
     plt.plot(temps, m, "o-", lw=2)
@@ -136,8 +149,8 @@ def main():
     plt.title("Order/disorder transition (2D Ising, Glauber dynamics)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("glauber_M_vs_T.png", dpi=120)
-    print("Wrote glauber_M_vs_T.png")
+    plt.savefig(figure_path("glauber_M_vs_T.png"), dpi=120)
+    print("Wrote " + figure_path("glauber_M_vs_T.png"))
 
     plt.figure(figsize=(6, 4))
     plt.plot(temps4, m4, "o-", lw=2, color="C2")
@@ -147,8 +160,8 @@ def main():
     plt.title("Order/disorder transition (4D Ising, $10^4$ lattice)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("glauber_M_vs_T_4d.png", dpi=120)
-    print("Wrote glauber_M_vs_T_4d.png")
+    plt.savefig(figure_path("glauber_M_vs_T_4d.png"), dpi=120)
+    print("Wrote " + figure_path("glauber_M_vs_T_4d.png"))
 
 
 if __name__ == "__main__":

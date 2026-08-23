@@ -1,0 +1,12 @@
+# Core numerics (tensor-train algorithms, DMRG, GMRES)
+numpy>=1.24
+scipy>=1.10
+
+# Plotting (figures, benchmark plots)
+matplotlib>=3.7
+
+# Results tabulation (src/organize_results.py, src/plot_results.py)
+pandas>=2.0
+
+# Test suite (tests/)
+pytest>=7.4

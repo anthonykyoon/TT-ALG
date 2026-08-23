@@ -339,7 +339,7 @@ def _random_right_canonical(dims, init_rank, rng):
         Q, Rmat = np.linalg.qr(G[k].reshape(r0, nk * r1).T)   # columns of Q orthonormal
         rr = Q.shape[1]
         G[k] = Q.T.reshape(rr, nk, r1)
-        G[k - 1] = np.einsum('abc,dc->abd', G[k - 1], Rmat.T) # push R into the left neighbour
+        G[k - 1] = np.einsum('abc,cd->abd', G[k - 1], Rmat.T) # push R into the left neighbour
     return G
 
 

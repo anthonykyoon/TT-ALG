@@ -13,7 +13,7 @@
 \usepackage{braket}
 \usepackage{float}
 
-\title{Summer 2026 Project}
+\title{Glauber Dynamics via Tensor Trains}
 \author{Anthony Yoon}
 \date{May 2026}
 
@@ -51,367 +51,6 @@
 \maketitle
 \tableofcontents
 \newpage 
-\section{Introduction to Problem Statement}\label{sec:problem}
-\subsection{Why is the symmetric property so important}\label{sec:symmetric}
-To motivate the higher dimensional problem, first consider the two dimensional problem. 
-Say we are given a system of linear equations that can be represented in the following matrix form: 
-\[
-Ax = b 
-\]
-where $A$ is an $n \times n$ matrix. If $A$ is a symmetric matrix, then we can use techniques like the LU decomposition and the Cholesky decomposition solvers to solve these problems. The symmetric property guarantees that all eigenvalues are real, which makes computing and interpreting the condition number very easy. Additionally, the symmetric property allows us to hold only the upper triangular portion of the matrix in memory, saving us memory. In general, the symmetric property gives us a lot of tools to work with.
-
-However, once we take away this assumption, we can see that the problem becomes more computationally expensive. For example, we have to use alternative solvers that are computationally more expensive to work with and computing the condition number becomes a much harder task. 
-\subsection{Applications to Higher Dimensional cases}\label{sec:higher-dim}
-In the two dimensional case, a popular way of solving a system of linear equations is to minimize the MSE or 
-\[
-\min_x \|Ax -b\|^2
-\]
-under the right conditions. A popular way of doing this is solving the normal equations or
-\[
-A^T A x =  A^T b 
-\]
-As noted in the previous section, when $A$ is asymmetric, the computation of $A^T A$ becomes more expensive and has a bad condition number.
-
-In the higher dimensional case, the DMRG algorithm can be used to solve this above case; its adaptation to solving the linear systems that arise here is developed in Section~\ref{sec:tt-motivation}.
-
-There is a subtle point we can use here. If $A$ comes from a PDE and is still non-symmetric, we can use a pre-conditioning technique to better condition the data. An example of this would be using the Galerkin method to solve it. 
-\subsection{Explanation of the Galerkin Method}\label{sec:galerkin-intro}
-\subsection{The Galerkin Method}\label{sec:galerkin}
-
-Galerkin methods are a family of methods for converting a continuous operator
-problem, such as a differential equation, to a discrete problem by applying
-linear constraints determined by finite sets of basis functions. The method
-proceeds by first recasting the problem in a weak form amenable to
-discretisation, then projecting onto a finite-dimensional subspace spanned by
-chosen basis functions, and finally assembling the resulting algebraic system.
-
-\subsubsection{Strong and Weak Formulations}\label{sec:strong-weak}
-
-Consider a general linear boundary value problem: find $u$ such that
-\begin{equation}
-    \mathcal{L}u = f \quad \text{on } \Omega,
-\end{equation}
-subject to appropriate boundary conditions on $\partial\Omega$. This is the
-\emph{strong form} of the problem, which requires $u$ to be sufficiently smooth
-that $\mathcal{L}u$ is pointwise well-defined. For many problems of practical
-interest, particularly those involving discontinuous coefficients or irregular
-geometries, such regularity cannot be guaranteed and the strong form is too
-restrictive a framework.
-
-The Galerkin method instead works with the \emph{weak} (or \emph{variational})
-\emph{form}, obtained by multiplying the residual $\mathcal{L}u - f$ by a test
-function $v$ belonging to some function space $V$, and integrating over the
-domain:
-\begin{equation}
-    \int_\Omega \left(\mathcal{L}u - f\right) v \,\mathrm{d}\Omega = 0.
-\end{equation}
-For a second-order elliptic operator, integration by parts transfers one
-derivative from $u$ onto $v$, yielding the bilinear form $a(\cdot,\cdot)$ and
-linear functional $\ell(\cdot)$ defined by
-\begin{equation}
-    a(u, v) = \ell(v) \quad \forall\, v \in V,
-    \label{eq:weak_form}
-\end{equation}
-where $\ell(v) = \int_\Omega f v \,\mathrm{d}\Omega$. This redistribution of
-derivatives is not merely a formal manipulation. It reduces the regularity
-requirement on $u$ from $H^2(\Omega)$ to $H^1(\Omega)$, making the formulation
-well-posed for a much broader class of solutions and admitting basis functions,
-such as piecewise linear polynomials, whose derivatives are discontinuous at
-element boundaries.
-
-Any strong solution is also a weak solution, but the converse need not hold in
-general. The weak form is therefore the natural setting for finite element
-analysis.
-
-\subsubsection{Discretisation by Basis Functions}\label{sec:discretisation}
-
-To obtain a computable approximation, the infinite-dimensional space $V$ is
-replaced by a finite-dimensional subspace
-\begin{equation}
-    V_h = \mathrm{span}\left\{\varphi_1, \varphi_2, \ldots, \varphi_n\right\}
-    \subset V,
-\end{equation}
-where the basis functions $\{\varphi_i\}_{i=1}^n$ are chosen to be piecewise
-polynomials associated with a mesh of characteristic size $h$ over $\Omega$.
-The approximate solution $u_h \in V_h$ is written as a linear combination of
-these basis functions,
-\begin{equation}
-    u_h(\mathbf{x}) = \sum_{j=1}^{n} u_j\, \varphi_j(\mathbf{x}),
-    \label{eq:expansion}
-\end{equation}
-where the coefficients $\mathbf{u} = (u_1, u_2, \ldots, u_n)^\top \in
-\mathbb{R}^n$ are the unknowns to be determined. The problem~\eqref{eq:weak_form}
-is then posed over $V_h$: find $u_h \in V_h$ such that
-\begin{equation}
-    a(u_h, v_h) = \ell(v_h) \quad \forall\, v_h \in V_h.
-    \label{eq:discrete_weak}
-\end{equation}
-Since it suffices to enforce~\eqref{eq:discrete_weak} for each basis function
-$v_h = \varphi_i$, substituting the expansion~\eqref{eq:expansion} and using
-linearity of $a$ in its first argument gives
-\begin{equation}
-    \sum_{j=1}^{n} a(\varphi_j, \varphi_i)\, u_j = \ell(\varphi_i),
-    \quad i = 1, \ldots, n,
-\end{equation}
-which is a system of $n$ equations in $n$ unknowns.
-
-\subsubsection{The Stiffness Matrix and Load Vector}\label{sec:stiffness}
-
-The system of equations above can be written compactly as the linear system
-\begin{equation}
-    \mathbf{A}\mathbf{u} = \mathbf{f},
-    \label{eq:linear_system}
-\end{equation}
-where the \emph{stiffness matrix} $\mathbf{A} \in \mathbb{R}^{n \times n}$ and
-the \emph{load vector} $\mathbf{f} \in \mathbb{R}^n$ have entries
-\begin{equation}
-    A_{ij} = a(\varphi_j, \varphi_i), \qquad f_i = \ell(\varphi_i).
-\end{equation}
-When $a(\cdot, \cdot)$ is symmetric and coercive --- as is the case for the
-Poisson equation and linear elasticity, for instance --- the matrix $\mathbf{A}$
-is symmetric positive definite (SPD). An immediate consequence is that the
-system~\eqref{eq:linear_system} has a unique solution, and that the Galerkin
-approximation $u_h$ is optimal in the energy norm. This is the content of
-C\'{e}a's lemma, which states that
-\begin{equation}
-    \|u - u_h\|_a \leq \frac{M}{\alpha}\, \inf_{v_h \in V_h} \|u - v_h\|_a,
-\end{equation}
-where $M$ and $\alpha$ are the continuity and coercivity constants of
-$a(\cdot,\cdot)$ respectively, and $\|\cdot\|_a = \sqrt{a(\cdot,\cdot)}$ is
-the energy norm. The Galerkin solution is therefore the best approximation
-to $u$ available within $V_h$, up to the constant $M/\alpha$. This optimality
-property is the theoretical backbone of finite element error analysis.
-
-A further consequence of the discrete formulation is the \emph{Galerkin
-orthogonality} condition,
-\begin{equation}
-    a(u - u_h,\, v_h) = 0 \quad \forall\, v_h \in V_h,
-\end{equation}
-which states that the error $u - u_h$ is orthogonal to the discrete space $V_h$
-in the inner product induced by $a(\cdot,\cdot)$.
-
-\subsubsection{Sparsity of the Stiffness Matrix}\label{sec:sparsity}
-
-A key structural property of the stiffness matrix arises from the local support
-of the basis functions. Standard finite element basis functions $\varphi_i$ are
-nonzero only on the small number of mesh elements adjacent to node $i$. It
-follows that
-\begin{equation}
-    A_{ij} = a(\varphi_j, \varphi_i) = 0
-    \quad \text{whenever} \quad
-    \mathrm{supp}(\varphi_i) \cap \mathrm{supp}(\varphi_j) = \emptyset,
-\end{equation}
-since the integrand vanishes identically outside the intersection of the two
-supports. Consequently, $\mathbf{A}$ has at most $O(1)$ nonzero entries per row,
-independently of $n$. The total number of nonzeros is $O(n)$, in contrast to
-the $O(n^2)$ entries of a dense matrix. This sparsity is the principal
-computational advantage of the Galerkin finite element method over global
-spectral approximations, and it is the structure that makes large-scale
-three-dimensional problems tractable.
-
-Despite this sparsity, the condition number of $\mathbf{A}$ deteriorates with
-mesh refinement. For a second-order elliptic problem in $d$ dimensions,
-\begin{equation}
-    \kappa(\mathbf{A}) = O(h^{-2}),
-\end{equation}
-so that iterative solvers such as conjugate gradients converge increasingly
-slowly as $h \to 0$. This growth in condition number motivates the use of
-preconditioners, and in particular the multilevel Galerkin projection
-$\mathbf{A}^c = \mathbf{V}^\top \mathbf{A}\mathbf{V}$ discussed in the
-following sections, which constructs a hierarchy of coarser representations
-of $\mathbf{A}$ to address the ill-conditioning introduced by fine
-discretisations.
-
-\subsubsection{Limitations of the Symmetric Galerkin Framework}\label{sec:galerkin-limits}
-
-The optimality and well-posedness results above rest critically on the symmetry
-and coercivity of the bilinear form $a(\cdot,\cdot)$. Both properties are
-inherited from the operator $\mathcal{L}$, and both can fail when $\mathcal{L}$
-is non-self-adjoint. The most common source of non-self-adjointness in
-applications is a first-order convective term: consider, for example, the
-convection-diffusion operator
-\begin{equation}
-    \mathcal{L}u = -\varepsilon \Delta u + \mathbf{b} \cdot \nabla u,
-\end{equation}
-where $\varepsilon > 0$ is a diffusion coefficient and $\mathbf{b}$ is a
-prescribed velocity field. The bilinear form associated with this operator,
-\begin{equation}
-    a(u, v) = \varepsilon \int_\Omega \nabla u \cdot \nabla v \,\mathrm{d}\Omega
-              + \int_\Omega (\mathbf{b} \cdot \nabla u)\, v \,\mathrm{d}\Omega,
-\end{equation}
-is coercive but no longer symmetric, since the convective term contributes a
-skew-symmetric part. In the convection-dominated regime $\|\mathbf{b}\| \gg
-\varepsilon$, the standard Galerkin discretisation is well-known to produce
-spurious node-to-node oscillations that pollute the entire solution. The root
-cause is that the test space $V_h$, being identical to the trial space, is
-not adapted to the directional character of the transport operator.
-
-A related difficulty arises in \emph{mixed formulations}, where the
-approximation of two coupled fields --- such as velocity and pressure in the
-Stokes equations --- requires the discrete spaces to satisfy a compatibility
-condition. When the same space is used for both trial and test functions, this
-condition, known as the inf-sup or Ladyzhenskaya--Babu\v{s}ka--Brezzi (LBB)
-condition, is easily violated, leading to a singular or severely ill-conditioned
-stiffness matrix.
-
-Both of these failures share a common structure: the test space $V_h$ is the
-wrong space against which to enforce the residual. This observation motivates a
-generalisation of the Galerkin framework in which the trial and test spaces are
-permitted to differ, leading to the Petrov--Galerkin method discussed in
-Section~\ref{sec:petrov-galerkin}.
-
-\subsection{The Petrov--Galerkin Method}\label{sec:petrov-galerkin}
-
-The Petrov--Galerkin method generalises the Galerkin framework by decoupling
-the space in which the approximate solution is sought from the space against
-which the residual is tested. Let $V_h = \mathrm{span}\{\varphi_1, \ldots,
-\varphi_n\}$ denote the \emph{trial space} and $W_h = \mathrm{span}\{\psi_1,
-\ldots, \psi_n\}$ denote the \emph{test space}, where in general $W_h \neq
-V_h$. The discrete problem reads: find $u_h \in V_h$ such that
-\begin{equation}
-    a(u_h, w_h) = \ell(w_h) \quad \forall\, w_h \in W_h.
-    \label{eq:pg_weak}
-\end{equation}
-Substituting the expansion $u_h = \sum_j u_j \varphi_j$ and testing against
-each $w_h = \psi_i$ yields the linear system
-\begin{equation}
-    \mathbf{A}^{PG} \mathbf{u} = \mathbf{f}^{PG},
-    \label{eq:pg_system}
-\end{equation}
-with entries
-\begin{equation}
-    A^{PG}_{ij} = a(\varphi_j, \psi_i), \qquad f^{PG}_i = \ell(\psi_i).
-\end{equation}
-When $W_h = V_h$ this reduces identically to the standard Galerkin
-system~\eqref{eq:linear_system}. In the Petrov--Galerkin setting, however,
-$\mathbf{A}^{PG}$ is generally non-symmetric even if $a(\cdot,\cdot)$ is
-symmetric, reflecting the asymmetry between the roles of $\varphi_j$ and
-$\psi_i$. \textbf{DO THIS LATER}
-
-\section{Fokker--Planck Equations}\label{sec:fokker-planck}
-We want to solve the $d$-dimensional Fokker--Planck equation:
-\[
-L \rho(x) = -T \Delta \rho(x) - \nabla \cdot (\rho(x) \nabla V(x))  = 0 \quad x \in \Omega := [-b, b]^d
-\]
-where 
-\[
-\rho = e^{-\beta V(x)}
-\]
-for some function $V$, with $\beta = 1/T$.
-with the Dirichlet boundary condition $\rho|_{\partial \Omega} = 0$. As a reminder,
-\[
-\nabla = \sum_{i=1}^{n} \frac{\partial}{\partial x_i}\,\hat{e}_i \quad \Delta = \nabla^2 = \sum_{i=1}^{n} \frac{\partial^2}{\partial x_i^2}
-\]
-Let 
-\[
-V(x) = \sum_{i = 1}^d V_i (x_i)
-\]
-where 
-\[
-V_1(x) = a_1(x^2-1)^2 \quad V_i(x) = a_i x^2 \quad i \in \{2, \dots, d\}
-\]
-This is known as the \emph{double well potential}. Thus, we can formulate the Fokker--Planck problem as
-\[
-\sum_{i=1}^d L_i \rho(x) = 0 
-\]
-where 
-\[
-L_i = T \frac{\partial^2}{\partial x_i^2} + V_i'(x_i) \frac{\partial}{\partial x_i} + V''_i(x_i)
-\]
-This holds as follows. Start by expanding $L\rho$:
-\[
-L\rho = -T\Delta\rho - \nabla \cdot (\rho \nabla V)
-\]
-Since $V(x) = \sum_{i=1}^d V_i(x_i)$ is separable, 
-$\nabla V = \sum_{i=1}^d V_i'(x_i)\hat{e}_i$ is separable as well. Thus, 
-\[
-\nabla \cdot (\rho \nabla V) 
-= \sum_{i=1}^d \frac{\partial}{\partial x_i}\left(\rho \, V_i'(x_i)\right) 
-= \sum_{i=1}^d \left(\frac{\partial \rho}{\partial x_i} V_i'(x_i) + \rho \, V_i''(x_i)\right)
-\]
-Combining with the Laplacian term:
-\[
-L\rho 
-= \sum_{i=1}^d \left( -T\frac{\partial^2 \rho}{\partial x_i^2} 
-- V_i'(x_i)\frac{\partial \rho}{\partial x_i} 
-- V_i''(x_i)\rho \right) 
-= -\sum_{i=1}^d L_i \rho
-\]
-%
-Thus $L\rho = 0$ is equivalent to $\sum_{i=1}^d L_i \rho = 0$, 
-where each $L_i$ acts only on the $x_i$ coordinate:
-%
-\[
-L_i = T\frac{\partial^2}{\partial x_i^2}
-+ V_i'(x_i)\frac{\partial}{\partial x_i}
-+ V_i''(x_i)
-\]
-Using the finite difference method, we can discretize this. Consider the uniform mesh $x^j = -b + jh$ for $j \in \{0\} \cup [2N]$ where $Nh = b$. Thus, by the finite difference method, we know that 
-\[
-\frac{\partial V}{\partial x_i} \approx \frac{u_{j+1} - u_{j-1}}{2h}
-\]
-\[
-\frac{\partial^2V}{\partial x_i^2} \approx \frac{u_{j+1} - 2u_j + u_{j-1}}{h^2}
-\]
-and thus 
-\[
-L_i u(x^j) \approx T \frac{u_{j+1} - 2u_j + u_{j-1}}{h^2} + V'_i(x^j) \frac{u_{j+1} - u_{j-1}}{2h} + V''_i (x^j)u_j
-\]
-\[
-= \underbrace{\left(-\frac{V_i'(x^j)}{2h} + \frac{T}{h^2}\right)}_{=:\,\alpha_j/h^2} u_{j-1}
-+ \underbrace{\left(V_i''(x^j) - \frac{2T}{h^2}\right)}_{=:\,\beta_j/h^2} u_j
-+ \underbrace{\left(\frac{V_i'(x^j)}{2h} + \frac{T}{h^2}\right)}_{=:\,\gamma_j/h^2} u_{j+1}
-\]
-Thus, we can represent the above as the following
-\[
-\underbrace{
-\begin{bmatrix}
-\beta_1    & \gamma_1   & 0          & 0          & \cdots     & \cdots     & \cdots     \\
-\alpha_2   & \beta_2    & \gamma_2   & 0          & \cdots     & \cdots     & \cdots     \\
-0          & \alpha_3   & \beta_3    & \gamma_3   & \cdots     & \cdots     & \cdots     \\
-\vdots     & \vdots     & \vdots     & \vdots     & \vdots     & \vdots     & \vdots     \\
-\vdots     & \vdots     & \vdots     & \vdots     & \vdots     & \vdots     & \vdots     \\
-\cdots     & \cdots     & \cdots     & \cdots     & \alpha_{2N-2} & \beta_{2N-2} & \gamma_{2N-2} \\
-\cdots     & \cdots     & \cdots     & \cdots     & 0          & \alpha_{2N-1} & \beta_{2N-1}
-\end{bmatrix}
-}_{\hat{L}_i}
-\begin{bmatrix}
-u^1 \\ u^2 \\ u^3 \\ \vdots \\ \vdots \\ u^{2N-2} \\ u^{2N-1}
-\end{bmatrix}
-= 0
-\]
-% Say we are interested in solving the system of linear equations, 
-% \[
-%     Ax = b
-% \]
-% where $A$ is not symmetric. When $A$ itself is symmetric, we know that the problem can be solved easily using known methods, say Gaussian elimination. Generally, we can solve this system of equations by 
-% \[
-% \min_x \|Ax - b\|^2
-% \]
-% which is the standard MSE estimation. However, since $A$ itself is not symmetric, $A$ itself must have a very bad condition number. This is because when we compute 
-% \[
-% A^T Ax = A^T b
-% \]
-% $A^TA$ itself is very large and takes a lot of computational power. 
-
-% In the case where $x$ is a tensor, or equivalently a tensor train, the MSE can be solved by performing the DMRG method. References for the DMRG method can be found here \textbf{INSERT HERE LATER}
-
-% There is a subtlety. If $A$ comes from a PDE, we can use the Galerkin method to solve this out. Details about this will be provided later, but the idea is that we can solve the system of linear equations by solving 
-% \[
-% U^T A U
-% \]
-% where U is a projection matrix. 
-
-% Since $A^T A$ has a bad condition number and is hard to compute, we can take the above and pre condition the matrix. 
-% \[
-% V^T A U U^T x = V^T b
-% \]
-% where $U$ is an orthogonal matrix where $U^T U = I_n$ where $I_n$ is the identity matrix of appropriate size. Therefore, if we let $\hat{x} = U^T x$, we can see that it suffices to solve 
-% \[
-% V^TA U \hat{x} = V^T b
-% \]
-% note that $V^T A U$ is still an asymmetric matrix, which still satisfies the main criteria of the problem. 
-\newpage 
 \section{Formulation of Glauber Dynamics into TT language }\label{sec:glauber}
 Given the 1D Ising model, where we assume that there is a lattice of electrons, we can use the results found by Roy J Glauber to model it. First, the key results from Glauber's ``Time-Dependent Statistics of the Ising Model'' are summarized, and then we demonstrate how to translate this to tensor train language.
 \subsection{A summary of the Glauber Dynamics}\label{sec:glauber-summary}
@@ -442,7 +81,7 @@ From $(1)$, we can see that
 &= -\alpha (p(1,t) - p(-1,t))\\
 &= -\alpha q(t)
 \end{align*}
-The solution to the above differential equation is given as $q(t) = q(0)e^{-\alpha t}$, which implies that the mean spin decays exponentially at a rate of $\alpha^{-1}$. 
+The solution to the above differential equation is given as $q(t) = q(0)e^{-\alpha t}$, which implies that the mean spin decays exponentially with relaxation time $\alpha^{-1}$ (equivalently, at rate $\alpha$).
 
 Now, consider the spin system of size $N$ as previously mentioned. We make the assumption that for a spin $i$, its neighbors' momentum influences the spin of the system. Note that there are $2^N$ elements in the sample space of the spin configuration. Let $w_i(\sigma_i)$ denote the probability per unit time that spin $i$ flips while the others remain momentarily fixed. The derivative with respect to time of the probability function $p(\sigma_1, \sigma_2, \dots, \sigma_N, t)$ can be expressed as
 \[
@@ -460,13 +99,13 @@ A natural question that arises is what are the values of $\alpha$ and $\gamma$? 
 \[
 H = -J \sum_i \sigma_i \sigma_{i+1}
 \]
-where $J$ is the coupling constant. At a temperature $T$, the probability that the $j$th spin will take on the value of $\sigma_j$, and not its opposed spin, is proportional to the Boltzmann factor $\exp(H/kT)$. Therefore,
+where $J$ is the coupling constant. At a temperature $T$, the probability that the $j$th spin will take on the value of $\sigma_j$, and not its opposed spin, is proportional to the Boltzmann factor $\exp(-H/kT)$. Therefore,
 \[
 \frac{p_i(-\sigma_i)}{p_i(\sigma_i)} = \frac{\exp \left[ -(J/kT)\sigma_i(\sigma_{i-1} + \sigma_{i+1})\right]}{\exp \left[ (J/kT)\sigma_i(\sigma_{i-1} + \sigma_{i+1})\right]}
 \]
 If only a singular element switches spins, then we can express 
 \[
-\frac{p_i(-\sigma_i)}{p_i(\sigma_i)} = \frac{w_i(-\sigma_i)}{w_i(\sigma_i)} = \frac{1 - 0.5\gamma \sigma_i (\sigma_{i-1} + \sigma_{i+1})}{1 + 0.5\gamma \sigma_i (\sigma_{i-1} + \sigma_{i+1})}
+\frac{p_i(-\sigma_i)}{p_i(\sigma_i)} = \frac{w_i(\sigma_i)}{w_i(-\sigma_i)} = \frac{1 - 0.5\gamma \sigma_i (\sigma_{i-1} + \sigma_{i+1})}{1 + 0.5\gamma \sigma_i (\sigma_{i-1} + \sigma_{i+1})}
 \]
 where $w_i$ is the probabilities as discussed prior. 
 Note that 
@@ -474,7 +113,28 @@ Note that
     \exp\left[\pm (J/kT)\sigma_i (\sigma_{i-1} + \sigma_{i+1}) \right] &= \cosh\left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1})\right) \pm \sigma_i \sinh \left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1})\right)\\
     &= \cosh\left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1}) \right) \left( 1 \pm \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1}) \tanh \left( \frac{2J}{kT} \right) \right)
 \end{align*}
-Thus, 
+We prove the two equalities directly. Write $\theta := \frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1})$, so that the exponent equals $\pm\frac{J}{kT}\sigma_i(\sigma_{i-1} + \sigma_{i+1}) = \sigma_i(\pm\theta)$.
+
+For the first equality, recall the defining relations $e^{\pm\theta} = \cosh\theta \pm \sinh\theta$. Since $\sigma_i \in \{+1, -1\}$, the quantity $\cosh\theta + \sigma_i\sinh\theta$ equals $\cosh\theta + \sinh\theta = e^{\theta}$ when $\sigma_i = +1$ and $\cosh\theta - \sinh\theta = e^{-\theta}$ when $\sigma_i = -1$; in both cases it is $e^{\sigma_i\theta}$. Hence $e^{\sigma_i\phi} = \cosh\phi + \sigma_i\sinh\phi$ for every real $\phi$, and taking $\phi = \pm\theta$ (with $\cosh$ even and $\sinh$ odd) gives
+\[
+\exp\!\left[\pm\tfrac{J}{kT}\sigma_i(\sigma_{i-1} + \sigma_{i+1})\right]
+= e^{\sigma_i(\pm\theta)}
+= \cosh\theta \pm \sigma_i\sinh\theta,
+\]
+which is the first line.
+
+For the second equality, factor the nonzero $\cosh\theta$ out of the first line,
+\[
+\cosh\theta \pm \sigma_i\sinh\theta = \cosh\theta\left(1 \pm \sigma_i\tanh\theta\right),
+\]
+and verify $\tanh\theta = \tfrac{1}{2}(\sigma_{i-1} + \sigma_{i+1})\tanh\tfrac{2J}{kT}$ by direct case check. As $\sigma_{i-1}, \sigma_{i+1} \in \{\pm 1\}$, the sum $\sigma_{i-1} + \sigma_{i+1}$ is one of $-2, 0, 2$: if it is $0$ then $\theta = 0$ and both sides vanish; if it is $2$ then $\theta = \tfrac{2J}{kT}$ and $\tanh\theta = \tanh\tfrac{2J}{kT} = \tfrac{1}{2}(2)\tanh\tfrac{2J}{kT}$; if it is $-2$ then $\theta = -\tfrac{2J}{kT}$ and $\tanh\theta = -\tanh\tfrac{2J}{kT} = \tfrac{1}{2}(-2)\tanh\tfrac{2J}{kT}$. Substituting $\sigma_i\tanh\theta = \tfrac{1}{2}\sigma_i(\sigma_{i-1} + \sigma_{i+1})\tanh\tfrac{2J}{kT}$ yields
+\[
+\cosh\theta\left(1 \pm \sigma_i\tanh\theta\right)
+= \cosh\theta\left(1 \pm \tfrac{1}{2}\sigma_i(\sigma_{i-1} + \sigma_{i+1})\tanh\tfrac{2J}{kT}\right),
+\]
+which is the second line.
+
+Thus,
 \begin{align*}
     \frac{p_i(-\sigma_i)}{p_i(\sigma_i)} &= \frac{\cosh\left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1}) \right) \left( 1 - \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1}) \tanh \left( \frac{2J}{kT} \right) \right)}{\cosh\left(\frac{J}{kT}(\sigma_{i-1} + \sigma_{i+1}) \right) \left( 1 + \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1}) \tanh \left( \frac{2J}{kT} \right) \right)} \\
     &= \frac{ 1 - \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1})  \tanh \left(\frac{2J}{kT}\right)}{ 1 + \frac{1}{2} \sigma_i (\sigma_{i-1} + \sigma_{i+1})  \tanh \left(\frac{2J}{kT}\right)}
@@ -491,6 +151,8 @@ We can describe the evolution of the configuration probabilities as follows:
 \]
 where $\sigma^i$ denotes the configuration $\sigma$ with the $i$-th spin flipped. 
 
+\emph{Notation.} A \emph{configuration} $\sigma = (\sigma_1, \dots, \sigma_N) \in \{\pm 1\}^N$ is a full assignment of spins to the $N$ sites. A \emph{subscript} $\sigma_i$ denotes the spin at \emph{site} $i$; a \emph{superscript} $\sigma^i$ denotes the configuration obtained from $\sigma$ by flipping that one site (so $(\sigma^i)^i = \sigma$). The rate $w_i(\sigma)$ is the probability per unit time of flipping site $i$ given the whole configuration $\sigma$: its subscript is a site, its argument a configuration. The vector $\brho \in \R^{2^N}$ carries one component per configuration, $[\brho]_\sigma = \rho(\sigma)$, and the generator $L \in \R^{2^N \times 2^N}$ is indexed by configurations, $L_{\sigma\sigma'}$ being the entry in row $\sigma$ and column $\sigma'$. To display $L$ as an explicit array we fix, once and for all, an arbitrary enumeration $\sigma^{(1)}, \dots, \sigma^{(2^N)}$ of the $2^N$ configurations and label the rows and columns by it; the parenthesised superscript $\sigma^{(k)}$ is an \emph{enumeration index} for the $k$-th configuration, and is not to be confused with the site subscript $\sigma_i$ or the single-flip superscript $\sigma^i$.
+
 We can express the right-hand side as the action of a linear operator $L$. Collecting the probabilities of all $2^N$ configurations into a vector $\boldsymbol{\rho}(t) \in \mathbb{R}^{2^N}$, with components $[\boldsymbol{\rho}(t)]_\sigma = \rho(\sigma, t)$, we define $L$ by
 \[
 \big(L\boldsymbol{\rho}\big)_\sigma = \sum_i \left[ w_i(\sigma^i)\, \rho(\sigma^i, t) - w_i(\sigma)\, \rho(\sigma, t) \right],
@@ -502,7 +164,7 @@ so that the master equation takes the compact form
 For brevity, we suppress the time argument henceforth, writing $\boldsymbol{\rho}$ instead of $\boldsymbol{\rho}(t)$. We can express the above in matrix format by noting
 \[
 L_{\sigma\sigma'} = \begin{cases}
-    w_i(\sigma) & \sigma = (\sigma')^i \\ 
+    w_i(\sigma') & \sigma = (\sigma')^i \\
     - \sum_i w_i(\sigma) & \sigma = \sigma' \\
     0 & \text{otherwise}
 \end{cases}
@@ -511,28 +173,28 @@ where the matrix is indexed row-wise by the configuration $\sigma$ and column-wi
 \[
 \underbrace{
 \begin{bmatrix}
--\displaystyle\sum_i w_i(\sigma_1) & \ell_{\sigma_1 \sigma_2} & \ell_{\sigma_1 \sigma_3} & \cdots & \ell_{\sigma_1 \sigma_{2^N}} \\[10pt]
-\ell_{\sigma_2 \sigma_1} & -\displaystyle\sum_i w_i(\sigma_2) & \ell_{\sigma_2 \sigma_3} & \cdots & \ell_{\sigma_2 \sigma_{2^N}} \\[10pt]
-\ell_{\sigma_3 \sigma_1} & \ell_{\sigma_3 \sigma_2} & -\displaystyle\sum_i w_i(\sigma_3) & \cdots & \ell_{\sigma_3 \sigma_{2^N}} \\[6pt]
+-\displaystyle\sum_i w_i(\sigma^{(1)}) & \ell_{\sigma^{(1)} \sigma^{(2)}} & \ell_{\sigma^{(1)} \sigma^{(3)}} & \cdots & \ell_{\sigma^{(1)} \sigma^{(2^N)}} \\[10pt]
+\ell_{\sigma^{(2)} \sigma^{(1)}} & -\displaystyle\sum_i w_i(\sigma^{(2)}) & \ell_{\sigma^{(2)} \sigma^{(3)}} & \cdots & \ell_{\sigma^{(2)} \sigma^{(2^N)}} \\[10pt]
+\ell_{\sigma^{(3)} \sigma^{(1)}} & \ell_{\sigma^{(3)} \sigma^{(2)}} & -\displaystyle\sum_i w_i(\sigma^{(3)}) & \cdots & \ell_{\sigma^{(3)} \sigma^{(2^N)}} \\[6pt]
 \vdots & \vdots & \vdots & \ddots & \vdots \\[4pt]
-\ell_{\sigma_{2^N} \sigma_1} & \ell_{\sigma_{2^N} \sigma_2} & \ell_{\sigma_{2^N} \sigma_3} & \cdots & -\displaystyle\sum_i w_i(\sigma_{2^N})
+\ell_{\sigma^{(2^N)} \sigma^{(1)}} & \ell_{\sigma^{(2^N)} \sigma^{(2)}} & \ell_{\sigma^{(2^N)} \sigma^{(3)}} & \cdots & -\displaystyle\sum_i w_i(\sigma^{(2^N)})
 \end{bmatrix}
 }_{L}
 \begin{bmatrix}
-\rho(\sigma_1, t) \\[8pt]
-\rho(\sigma_2, t) \\[8pt]
-\rho(\sigma_3, t) \\[6pt]
+\rho(\sigma^{(1)}, t) \\[8pt]
+\rho(\sigma^{(2)}, t) \\[8pt]
+\rho(\sigma^{(3)}, t) \\[6pt]
 \vdots \\[4pt]
-\rho(\sigma_{2^N}, t)
+\rho(\sigma^{(2^N)}, t)
 \end{bmatrix}
 =
 \frac{\partial}{\partial t}
 \begin{bmatrix}
-\rho(\sigma_1, t) \\[8pt]
-\rho(\sigma_2, t) \\[8pt]
-\rho(\sigma_3, t) \\[6pt]
+\rho(\sigma^{(1)}, t) \\[8pt]
+\rho(\sigma^{(2)}, t) \\[8pt]
+\rho(\sigma^{(3)}, t) \\[6pt]
 \vdots \\[4pt]
-\rho(\sigma_{2^N}, t)
+\rho(\sigma^{(2^N)}, t)
 \end{bmatrix}
 \]
 where 
@@ -557,7 +219,12 @@ The generator $L$ is singular, and its null space is one-dimensional. Consequent
 \]
 which is precisely the statement $\mathbf{1}^\top L = \mathbf{0}^\top$, where $\mathbf{1}$ is the all-ones vector. Thus $\mathbf{1}$ is a left null vector of $L$, so $L^\top$ has a nontrivial kernel and $\det L = \det L^\top = 0$; hence $L$ is singular. In particular $L$ has a nonzero right null vector $\brho$, i.e. $L\brho = 0$ admits a nontrivial solution.
 
-\emph{Uniqueness.} Every single-flip rate is strictly positive: from Section~\ref{sec:glauber}, $w_i(\sigma') \in \{\tfrac{\alpha}{2},\, \tfrac{\alpha}{2}(1-\gamma),\, \tfrac{\alpha}{2}(1+\gamma)\}$, all positive since $\alpha > 0$ and $|\gamma| < 1$. Hence each configuration communicates with every one of its single-flip neighbours, and on the ring any two configurations are joined by a chain of single flips, so $L$ is irreducible. By the Perron--Frobenius theorem for irreducible generators the eigenvalue $0$ is simple, so $\dim\ker L = 1$ and the stationary vector is unique up to scale. The corresponding Perron eigenvector may moreover be chosen with strictly positive entries, so it can be rescaled to satisfy $\|\brho\|_1 = 1$, giving a genuine probability distribution.
+\emph{Uniqueness.} Every single-flip rate is strictly positive: from Section~\ref{sec:glauber}, $w_i(\sigma') \in \{\tfrac{\alpha}{2},\, \tfrac{\alpha}{2}(1-\gamma),\, \tfrac{\alpha}{2}(1+\gamma)\}$, all positive since $\alpha > 0$ and $|\gamma| < 1$. To see that $L$ is \emph{irreducible} --- that from any configuration the chain can reach any other through a sequence of transitions of positive rate --- fix two configurations $\sigma, \tau \in \{\pm 1\}^N$ and let $S = \{\, i : \sigma_i \neq \tau_i \,\}$ be the set of sites at which they disagree. Flip those sites one at a time, in any fixed order $i_1, \dots, i_m$ with $m = |S|$, producing the sequence
+\[
+\sigma = c_0 \;\to\; c_1 \;\to\; \cdots \;\to\; c_m = \tau,
+\qquad c_k = (c_{k-1})^{i_k}.
+\]
+Each step changes exactly one spin, so the transition $c_{k-1} \to c_k$ has off-diagonal entry $L_{c_k\, c_{k-1}} = w_{i_k}(c_{k-1}) > 0$ and is therefore allowed. Hence $\sigma$ reaches $\tau$; as $\sigma$ and $\tau$ were arbitrary, $L$ is irreducible. Equivalently, the state space $\{\pm 1\}^N$ is the vertex set of the $N$-dimensional hypercube whose edges are exactly the single-flip transitions, and that graph is connected. By the Perron--Frobenius theorem for irreducible generators the eigenvalue $0$ is simple, so $\dim\ker L = 1$ and the stationary vector is unique up to scale. The corresponding Perron eigenvector may moreover be chosen with strictly positive entries, so it can be rescaled to satisfy $\|\brho\|_1 = 1$, giving a genuine probability distribution.
 \end{proof}
 \section{Motivation of using Tensor Trains}\label{sec:tt-motivation}
 Note in the above, for $N$ very large, solving the above system of linear equations becomes very costly. To avoid this, we can use tensor train methods to solve it. Here, we can apply the tensor train GMRES method and the DMRG. Before doing so, we must elaborate on how the TT-GMRES and the DMRG algorithm can be used to solve the system of linear equations. However, the TT-GMRES method is just a higher dimensional generalization of the standard GMRES method, so it only suffices to understand how the DMRG solves a system of linear equations.
@@ -1003,7 +670,7 @@ of operator Schmidt rank $2$ (the left factors $\{G, Z\}$ and right factors $\{Z
 \emph{Periodic ring.} An interior cut ($2 \le k \le N-1$) is straddled in addition by the two wrap-around couplings $c(Z_N G_1 + G_N Z_1)$, which place $G_1, Z_1$ on the left of the cut and $Z_N, G_N$ on the right. These are two further independent product terms, raising the Schmidt rank to $4 + 2 = 6$; the minimal bond dimension on the ring is therefore $6$.
 \subsubsection{The open-chain MPO}
 
-Reading $L$ as a finite-state machine --- start; or emit $Z$ and wait to emit $G$; or emit $G$ and wait to emit $Z$; or done --- gives, for the \emph{open} chain, the exact rank-$4$ MPO with bulk core
+Here each nonzero entry of a core acts as a transition of a finite-state machine scanning the chain: it \emph{emits} (places) that entry's local operator onto the current site while advancing the bond index from one state to the next, and a two-site coupling is assembled by emitting one factor and later \emph{closing} it with the matching factor at the partner site, the bond state in between remembering the still-owed factor. Reading $L$ as a finite-state machine --- start; or emit $Z$ and wait to emit $G$; or emit $G$ and wait to emit $Z$; or done --- gives, for the \emph{open} chain, the exact rank-$4$ MPO with bulk core
 \[
 W^{[i]} =
 \begin{pmatrix}

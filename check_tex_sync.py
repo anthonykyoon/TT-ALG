@@ -38,11 +38,12 @@ import difflib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BUNDLE = HERE / "Glauber TT"
-MASTER = HERE / "glauber" / "summer_project.tex"
+SRC = HERE / "src"
+BUNDLE = HERE / "papers" / "glauber_tt"
+MASTER = HERE / "papers" / "summer_project" / "summer_project.tex"
 COPY = BUNDLE / "glauber_tt.tex"
 
-# Solver CODE files: must be byte-identical between the repo root and the bundle.
+# Solver CODE files: must be byte-identical between src/ and the bundle.
 PY_FILES = [
     "tt_dmrg.py",
     "tt_gmres.py",
@@ -153,10 +154,10 @@ def check_tex():
 
 def check_python():
     """Byte-identical check of the code files; return True if in sync."""
-    print("\nPYTHON  (exact copies: repo root -> bundle)")
+    print("\nPYTHON  (exact copies: src/ -> bundle)")
     ok = True
     for name in PY_FILES:
-        root = HERE / name
+        root = SRC / name
         bundled = BUNDLE / name
         missing = [p for p in (root, bundled) if not p.exists()]
         if missing:
@@ -166,7 +167,7 @@ def check_python():
             continue
         a = root.read_text().splitlines()
         b = bundled.read_text().splitlines()
-        ok &= report(name, a, b, f"root/{name}", f"bundle/{name}")
+        ok &= report(name, a, b, f"src/{name}", f"bundle/{name}")
     return ok
 
 
@@ -175,7 +176,7 @@ def check_config():
     print("\nCONFIG  (presence required; contents may differ, user-tunable)")
     ok = True
     for name in CONFIG_FILES:
-        root = HERE / name
+        root = SRC / name
         bundled = BUNDLE / name
         if not bundled.exists():
             print(f"  [MISSING] {name}: absent from the bundle "
@@ -185,7 +186,7 @@ def check_config():
         if root.exists() and root.read_text() == bundled.read_text():
             print(f"  [OK]   {name} present and identical")
         else:
-            print(f"  [note] {name} present but differs from root "
+            print(f"  [note] {name} present but differs from src "
                   "(allowed: user-tunable config)")
     return ok
 
